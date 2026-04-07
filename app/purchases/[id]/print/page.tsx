@@ -44,14 +44,14 @@ export default async function PurchaseOrderPrintPage({
 
       <section className="document-keep-together overflow-hidden rounded-xl border border-slate-200 bg-white/56">
         <table className="min-w-full table-fixed divide-y divide-slate-200">
-          <thead className="bg-slate-50/95">
+          <thead style={{ backgroundColor: 'var(--doc-accent)' }}>
             <tr>
-              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Item</th>
-              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Qty</th>
-              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Received</th>
-              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Unit</th>
-              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Unit Price</th>
-              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Line Total</th>
+              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Item</th>
+              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Qty</th>
+              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Received</th>
+              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Unit</th>
+              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Unit Price</th>
+              <th className="px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Line Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white/30">

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { PrintButton } from '@/components/print-button'
@@ -10,7 +10,7 @@ type DocumentPrintLayoutProps = {
   documentLabel: string
   documentNumber: string
   title: string
-  subtitle?: string | null
+  subtitle?: ReactNode
   documentDate?: ReactNode
   showBankDetails?: boolean
   children: ReactNode
@@ -33,6 +33,60 @@ type DocumentAmountBreakdownProps = {
   totalValue: ReactNode
 }
 
+type DocumentTheme = {
+  accent: string
+  accentDark: string
+  accentSoft: string
+  badgeBorder: string
+}
+
+function getDocumentTheme(documentLabel: string): DocumentTheme {
+  const label = documentLabel.toLowerCase()
+
+  if (label.includes('receipt')) {
+    return {
+      accent: '#0a9e6e',
+      accentDark: '#06664a',
+      accentSoft: '#e8f8f3',
+      badgeBorder: '#bbf7d0',
+    }
+  }
+
+  if (label.includes('vendor payment')) {
+    return {
+      accent: '#7c3aed',
+      accentDark: '#5b21b6',
+      accentSoft: '#f3f0ff',
+      badgeBorder: '#ddd6fe',
+    }
+  }
+
+  if (label.includes('purchase order')) {
+    return {
+      accent: '#d97706',
+      accentDark: '#9a3412',
+      accentSoft: '#fff8e8',
+      badgeBorder: '#fde68a',
+    }
+  }
+
+  return {
+    accent: '#0e7cb8',
+    accentDark: '#0a5a8a',
+    accentSoft: '#e8f4fb',
+    badgeBorder: '#bfdbfe',
+  }
+}
+
+function getPartyLabel(documentLabel: string) {
+  const label = documentLabel.toLowerCase()
+
+  if (label.includes('purchase order')) return 'Vendor'
+  if (label.includes('vendor payment')) return 'Paid To'
+  if (label.includes('receipt')) return 'Received From'
+  return 'Billed To'
+}
+
 export function DocumentPrintLayout({
   backHref,
   backLabel,
@@ -49,6 +103,14 @@ export function DocumentPrintLayout({
     month: 'short',
     year: 'numeric',
   })
+  const theme = getDocumentTheme(documentLabel)
+  const sectionStyle = {
+    '--doc-accent': theme.accent,
+    '--doc-accent-dark': theme.accentDark,
+    '--doc-accent-soft': theme.accentSoft,
+    '--doc-accent-border': theme.badgeBorder,
+  } as CSSProperties
+  const address = COMPANY_PROFILE.contactDetails.addressLines.join('\n')
 
   return (
     <div className="min-h-full bg-slate-100">
@@ -60,63 +122,70 @@ export function DocumentPrintLayout({
           <PrintButton label="Print / PDF" />
         </div>
 
-        <section className="print-surface relative isolate flex min-h-[297mm] flex-col rounded-2xl border border-slate-200 bg-white px-[14mm] pb-[14mm] pt-[24mm] shadow-sm">
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-[26mm]">
-            <div className="absolute inset-x-0 top-0 h-[6mm] bg-sky-400" />
-            <div className="absolute right-[-8mm] top-[5mm] h-[18mm] w-[86%] rounded-bl-[120mm] bg-sky-400" />
-            <div className="absolute right-[-6mm] top-[6mm] h-[3mm] w-[72%] rounded-bl-[120mm] bg-blue-900" />
-          </div>
+        <section
+          className="print-surface relative isolate flex min-h-[297mm] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+          style={sectionStyle}
+        >
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-[8px]"
+            style={{ background: `linear-gradient(90deg, ${theme.accent} 0%, ${theme.accentDark} 64%, ${theme.accent} 100%)` }}
+          />
 
-          <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-[26mm] pb-[44mm] pt-[34mm]">
+          <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center px-[20mm]">
             <Image
               src="/print-watermark.png"
               alt=""
               aria-hidden="true"
-              width={2048}
-              height={612}
+              width={1400}
+              height={1400}
               priority
-              className="h-auto w-full max-w-[150mm] object-contain opacity-[0.08]"
+              className="h-auto w-full max-w-[128mm] -rotate-[18deg] object-contain opacity-[0.045]"
             />
           </div>
 
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[24mm]">
-            <div className="absolute inset-x-0 bottom-0 h-[8mm] bg-slate-100" />
-            <div className="absolute right-[-10mm] bottom-[7mm] h-[10mm] w-[48%] rounded-tl-[120mm] bg-slate-100" />
-            <div className="absolute left-[-6mm] bottom-[7mm] h-[8mm] w-[46%] rounded-tr-[120mm] bg-slate-100/80" />
-          </div>
-
-          <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="max-w-[60%] pt-[3mm]">
-              <Image
-                src="/ats-logo.png"
-                alt={COMPANY_PROFILE.brandName}
-                width={1080}
-                height={445}
-                priority
-                className="h-[14mm] w-auto max-w-[52mm]"
-              />
-              <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">{documentLabel}</p>
-              <h1 className="mt-1 text-[26px] font-bold leading-none text-slate-900">{documentNumber}</h1>
-              <p className="mt-2 text-base font-semibold text-slate-800">{title}</p>
-              {subtitle ? <p className="mt-1 text-sm text-slate-600">{subtitle}</p> : null}
-            </div>
-
-            <div className="w-full max-w-[72mm] text-sm text-slate-700">
-              <div className="text-right text-[15px] text-slate-700">
-                <span className="font-medium text-slate-900">Date :</span> {documentDate ?? generatedDate}
+          <header className="relative z-10 border-b border-slate-200 px-[14mm] pb-[6mm] pt-[12mm]">
+            <div className="flex items-start justify-between gap-[8mm]">
+              <div className="max-w-[92mm]">
+                <Image
+                  src="/ats-logo.png"
+                  alt={COMPANY_PROFILE.brandName}
+                  width={1080}
+                  height={445}
+                  priority
+                  className="h-[13mm] w-auto max-w-[52mm] object-contain object-left"
+                />
+                <div className="mt-2 text-[13px] font-bold text-slate-900">{COMPANY_PROFILE.legalName}</div>
+                <div className="mt-1 text-[9px] font-medium text-slate-600">TRN: {COMPANY_PROFILE.trn}</div>
+                <div className="mt-1 whitespace-pre-wrap text-[9.5px] leading-[1.55] text-slate-600">{address}</div>
               </div>
-              <div className="mt-3 rounded-xl border border-slate-200 bg-white/76 px-4 py-3 text-[11px] leading-5">
-                <div className="font-semibold uppercase tracking-[0.18em] text-slate-500">Issued By</div>
-                <div className="mt-1 text-sm font-semibold text-slate-900">{COMPANY_PROFILE.legalName}</div>
-                <div className="mt-2">
-                  <span className="font-medium text-slate-900">TRN:</span> {COMPANY_PROFILE.trn}
+
+              <div className="max-w-[74mm] text-right">
+                <div
+                  className="inline-flex rounded-full border px-3 py-1 text-[9px] font-bold uppercase tracking-[0.22em]"
+                  style={{
+                    backgroundColor: theme.accentSoft,
+                    borderColor: theme.badgeBorder,
+                    color: theme.accent,
+                  }}
+                >
+                  {documentLabel}
                 </div>
-                <div className="mt-2 whitespace-pre-wrap">{COMPANY_PROFILE.contactDetails.addressLines.join('\n')}</div>
+                <div className="mt-2 text-[24px] font-extrabold leading-none tracking-tight" style={{ color: theme.accent }}>
+                  {documentNumber}
+                </div>
+                <div className="mt-3 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">Date</div>
+                <div className="text-[13px] font-semibold text-slate-900">{documentDate ?? generatedDate}</div>
               </div>
             </div>
-          </div>
 
-          <div className="relative z-10 mt-[7mm] flex flex-1 flex-col gap-4">
+            <div className="mt-4 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
+              <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">{getPartyLabel(documentLabel)}</div>
+              <div className="mt-1 text-[15px] font-bold text-slate-900">{title}</div>
+              {subtitle ? <div className="mt-1 text-[11px] leading-[1.7] text-slate-600">{subtitle}</div> : null}
+            </div>
+          </header>
+
+          <div className="relative z-10 flex flex-1 flex-col gap-5 px-[14mm] py-[6mm]">
             {children}
 
             {showBankDetails ? (
@@ -124,8 +193,12 @@ export function DocumentPrintLayout({
             ) : null}
           </div>
 
-          <footer className="relative z-10 mt-[8mm] border-t border-slate-200/80 pt-[4mm]">
-            <div className="grid items-end gap-4 text-[11px] leading-[1.5] text-slate-600 md:grid-cols-2">
+          <footer className="relative z-10 mt-auto">
+            <div
+              className="h-[4px]"
+              style={{ background: `linear-gradient(90deg, ${theme.accent} 0%, ${theme.accentDark} 64%, ${theme.accent} 100%)` }}
+            />
+            <div className="grid items-center gap-4 border-t border-slate-200 bg-slate-50 px-[14mm] py-[4mm] text-[10px] leading-[1.5] text-slate-600 md:grid-cols-[1fr_auto_1fr]">
               <div className="space-y-0.5">
                 <div>
                   <span className="font-medium text-slate-900">Phone:</span> {COMPANY_PROFILE.contactDetails.phone}
@@ -134,14 +207,13 @@ export function DocumentPrintLayout({
                   <span className="font-medium text-slate-900">Mobile:</span> {COMPANY_PROFILE.contactDetails.mobile}
                 </div>
               </div>
+              <div className="text-center text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                {COMPANY_PROFILE.tagline}
+              </div>
               <div className="space-y-0.5 md:text-right">
-                <div>
-                  <span className="font-medium text-slate-900">Email:</span> {COMPANY_PROFILE.contactDetails.emails[0]}
-                </div>
+                <div>{COMPANY_PROFILE.contactDetails.emails[0]}</div>
                 <div>{COMPANY_PROFILE.contactDetails.emails[1]}</div>
-                <div>
-                  <span className="font-medium text-slate-900">Web:</span> {COMPANY_PROFILE.contactDetails.website}
-                </div>
+                <div>{COMPANY_PROFILE.contactDetails.website}</div>
               </div>
             </div>
           </footer>
@@ -155,8 +227,8 @@ export function DocumentInfoGrid({ items, columns = 3 }: DocumentInfoGridProps) 
   return (
     <section className="document-info-grid document-keep-together grid gap-4" data-columns={columns}>
       {items.map((item) => (
-        <div key={item.label} className="rounded-xl border border-slate-200 bg-white/56 px-3 py-2.5">
-          <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">{item.label}</div>
+        <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
+          <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">{item.label}</div>
           <div className="mt-1 text-sm font-medium text-slate-900">{item.value}</div>
         </div>
       ))}
@@ -171,18 +243,25 @@ export function DocumentAmountBreakdown({
   totalValue,
 }: DocumentAmountBreakdownProps) {
   return (
-    <section className="document-keep-together rounded-xl border border-slate-200 bg-white/68 px-4 py-3">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{title}</h2>
-      <dl className="mt-3 space-y-2 text-sm text-slate-700">
+    <section className="document-keep-together overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.02)]">
+      <div className="border-b border-slate-200 px-4 py-3" style={{ backgroundColor: 'var(--doc-accent-soft)' }}>
+        <h2 className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--doc-accent)' }}>
+          {title}
+        </h2>
+      </div>
+      <dl className="space-y-0 px-4 py-1 text-sm text-slate-700">
         {rows.map((row) => (
-          <div key={row.label} className="flex items-center justify-between gap-4">
+          <div key={row.label} className="flex items-center justify-between gap-4 border-b border-slate-200 py-2.5 last:border-b-0">
             <dt>{row.label}</dt>
             <dd className="font-medium text-slate-900">{row.value}</dd>
           </div>
         ))}
-        <div className="flex items-center justify-between gap-4 border-t border-slate-200 pt-2 text-base">
-          <dt className="font-semibold text-slate-900">{totalLabel}</dt>
-          <dd className="font-bold text-slate-900">{totalValue}</dd>
+        <div
+          className="mt-1 flex items-center justify-between gap-4 px-4 py-3 text-base"
+          style={{ backgroundColor: 'var(--doc-accent)', color: '#ffffff' }}
+        >
+          <dt className="font-semibold">{totalLabel}</dt>
+          <dd className="font-bold">{totalValue}</dd>
         </div>
       </dl>
     </section>
@@ -191,8 +270,8 @@ export function DocumentAmountBreakdown({
 
 export function DocumentTextBlock({ title, value }: { title: string; value: string }) {
   return (
-    <section className="document-keep-together rounded-xl border border-slate-200 bg-white/56 px-4 py-3">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{title}</h2>
+    <section className="document-keep-together rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
+      <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{title}</h2>
       <div className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{value}</div>
     </section>
   )
@@ -200,8 +279,8 @@ export function DocumentTextBlock({ title, value }: { title: string; value: stri
 
 export function DocumentBankDetails({ className = '' }: { className?: string }) {
   return (
-    <section className={`document-keep-together rounded-xl border border-slate-200 bg-white/78 px-4 py-3 ${className}`}>
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Bank Details</h2>
+    <section className={`document-keep-together rounded-xl border border-slate-200 bg-[#f8fbfd] px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.02)] ${className}`}>
+      <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Bank Details</h2>
       <dl className="mt-2 grid gap-x-4 gap-y-2 text-[11px] text-slate-700 md:grid-cols-2">
         <div>
           <dt className="font-medium text-slate-500">Account Name</dt>

@@ -59,7 +59,7 @@
     width: 210mm !important;
     min-height: 297mm !important;
     height: auto !important;
-    padding: 24mm 14mm 14mm !important;
+    padding: 0 !important;
     margin: 0 auto !important;
     box-shadow: none !important;
     border-color: #e2e8f0 !important;

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import {
   DocumentAmountBreakdown,
+  DocumentBankDetails,
   DocumentInfoGrid,
   DocumentPrintLayout,
 } from '@/components/document-print-layout'
@@ -28,14 +29,24 @@ export default async function InvoicePrintPage({
       documentLabel="Invoice"
       documentNumber={invoice.invoice_number}
       title={invoice.client_name || 'Client Invoice'}
-      subtitle={invoice.project_name || undefined}
+      subtitle={
+        <>
+          {invoice.project_name ? <div>{invoice.project_name}</div> : null}
+          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
+            Project No: {invoice.project_code || '-'}
+          </div>
+          {invoice.client_address ? (
+            <div className="mt-1 whitespace-pre-wrap text-[11px] normal-case tracking-normal text-slate-600">
+              {invoice.client_address}
+            </div>
+          ) : null}
+        </>
+      }
       documentDate={formatDate(invoice.invoice_date)}
-      showBankDetails
     >
       <DocumentInfoGrid
-        columns={3}
+        columns={2}
         items={[
-          { label: 'Project No', value: invoice.project_code || '-' },
           { label: 'Invoice Date', value: formatDate(invoice.invoice_date) },
           { label: 'Due Date', value: formatDate(invoice.due_date) },
         ]}
@@ -43,13 +54,13 @@ export default async function InvoicePrintPage({
 
       <section className="document-keep-together overflow-hidden rounded-xl border border-slate-200 bg-white/56">
         <table className="min-w-full table-fixed divide-y divide-slate-200">
-          <thead className="bg-slate-50/95">
+          <thead style={{ backgroundColor: 'var(--doc-accent)' }}>
             <tr>
-              <th className="w-[42%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Description</th>
-              <th className="w-[10%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Qty</th>
-              <th className="w-[14%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Unit</th>
-              <th className="w-[16%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Unit Price</th>
-              <th className="w-[18%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Line Total</th>
+              <th className="w-[42%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Description</th>
+              <th className="w-[10%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Qty</th>
+              <th className="w-[14%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Unit</th>
+              <th className="w-[16%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Unit Price</th>
+              <th className="w-[18%] px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-white">Line Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white/30">
@@ -66,8 +77,10 @@ export default async function InvoicePrintPage({
         </table>
       </section>
 
-      <div className="flex justify-end">
-        <div className="document-keep-together w-full max-w-[88mm]">
+      <div className="ml-auto grid w-full max-w-[180mm] grid-cols-2 items-start gap-4">
+        <DocumentBankDetails className="mt-[18mm]" />
+
+        <div className="document-keep-together">
           <DocumentAmountBreakdown
             title="Invoice Summary"
             rows={[

@@ -24,6 +24,7 @@ export type InvoiceSummary = {
   project_code?: string
   client_id: string
   client_name?: string
+  client_address?: string | null
   invoice_date: string
   due_date: string | null
   description: string | null
@@ -71,12 +72,12 @@ export type UpdateInvoiceInput = {
 
 type InvoiceListRow = InvoiceSummary & {
   projects: MaybeRelated<{ name: string; project_code: string }>
-  clients: MaybeRelated<{ name: string }>
+  clients: MaybeRelated<{ name: string; address: string | null }>
 }
 
 type InvoiceDetailRow = Omit<InvoiceDetail, 'project_name' | 'client_name' | 'phase_name' | 'items'> & {
   projects: MaybeRelated<{ name: string; project_code: string }>
-  clients: MaybeRelated<{ name: string }>
+  clients: MaybeRelated<{ name: string; address: string | null }>
   project_phases: MaybeRelated<{ name: string }>
 }
 
@@ -91,7 +92,7 @@ export async function getInvoices(
       description, subtotal, vat_percentage, vat_applicable, vat_amount, total_amount,
       amount_paid, balance_due, status, created_at,
       projects:project_id (name, project_code),
-      clients:client_id (name)
+      clients:client_id (name, address)
     `)
     .order('created_at', { ascending: false })
 
@@ -126,6 +127,7 @@ export async function getInvoices(
     project_name: unwrapRelated(row.projects)?.name,
     project_code: unwrapRelated(row.projects)?.project_code,
     client_name: unwrapRelated(row.clients)?.name,
+    client_address: unwrapRelated(row.clients)?.address,
   }))
 }
 
@@ -138,7 +140,7 @@ export async function getInvoiceById(
     .select(`
       *,
       projects:project_id (name, project_code),
-      clients:client_id (name),
+      clients:client_id (name, address),
       project_phases:phase_id (name)
     `)
     .eq('id', id)
@@ -165,6 +167,7 @@ export async function getInvoiceById(
     project_name: unwrapRelated(invoice.projects)?.name,
     project_code: unwrapRelated(invoice.projects)?.project_code,
     client_name: unwrapRelated(invoice.clients)?.name,
+    client_address: unwrapRelated(invoice.clients)?.address,
     phase_name: unwrapRelated(invoice.project_phases)?.name,
     items: items || [],
   }

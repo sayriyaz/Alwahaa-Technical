@@ -1,6 +1,7 @@
 export const COMPANY_PROFILE = {
   legalName: 'Alwahaa Technical Services LLC',
   brandName: 'Alwahaa Technical Services',
+  tagline: 'FOR YOUR EXPECTATIONS, WE BUILD WITH PASSION',
   trn: '100069526000003',
   contactDetails: {
     emails: ['info@alwahaapools.com', 'alwahaatechnical@gmail.com'],
