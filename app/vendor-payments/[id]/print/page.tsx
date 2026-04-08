@@ -58,6 +58,7 @@ export default async function VendorPaymentPrintPage({
           ]}
           totalLabel="Total Paid"
           totalValue={formatCurrency(totalPaid)}
+          totalAmount={totalPaid}
         />
       </div>
     </DocumentPrintLayout>

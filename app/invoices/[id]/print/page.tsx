@@ -88,6 +88,7 @@ export default async function InvoicePrintPage({
           ]}
           totalLabel="Total Amount"
           totalValue={formatCurrency(invoice.total_amount)}
+          totalAmount={invoice.total_amount}
         />
       </div>
 

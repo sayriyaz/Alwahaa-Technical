@@ -92,7 +92,7 @@ async function syncInvoiceReceiptState(
       .single(),
     queryClient
       .from('receipts')
-      .select('amount')
+      .select('amount, vat_amount, vat_applicable')
       .eq('invoice_id', invoiceId),
   ])
 
@@ -102,7 +102,7 @@ async function syncInvoiceReceiptState(
     return
   }
 
-  const amountPaid = (receiptRows || []).reduce((sum, receipt) => sum + (receipt.amount || 0), 0)
+  const amountPaid = (receiptRows || []).reduce((sum, receipt) => sum + (receipt.amount || 0) + (receipt.vat_applicable ? (receipt.vat_amount || 0) : 0), 0)
   const balanceDue = Math.max((invoice.total_amount || 0) - amountPaid, 0)
   const status =
     invoice.status === 'Cancelled'
@@ -555,7 +555,7 @@ export async function getFinancialSummary(
 
   const receiptsQuery = queryClient
     .from('receipts')
-    .select('amount')
+    .select('amount, vat_amount, vat_applicable')
 
   const purchaseOrdersQuery = queryClient
     .from('purchase_orders')
@@ -564,7 +564,7 @@ export async function getFinancialSummary(
 
   const vendorPaymentsQuery = queryClient
     .from('vendor_payments')
-    .select('amount')
+    .select('amount, vat_amount, vat_applicable')
 
   const expensesQuery = queryClient
     .from('project_expenses')
@@ -593,9 +593,9 @@ export async function getFinancialSummary(
   ])
 
   const totalInvoiced = (invoices || []).reduce((sum, i) => sum + (i.total_amount || 0), 0)
-  const totalReceived = (receipts || []).reduce((sum, r) => sum + (r.amount || 0), 0)
+  const totalReceived = (receipts || []).reduce((sum, r) => sum + (r.amount || 0) + (r.vat_applicable ? (r.vat_amount || 0) : 0), 0)
   const totalPurchases = (pos || []).reduce((sum, p) => sum + (p.total_amount || 0), 0)
-  const totalVendorPayments = (vendorPayments || []).reduce((sum, p) => sum + (p.amount || 0), 0)
+  const totalVendorPayments = (vendorPayments || []).reduce((sum, p) => sum + (p.amount || 0) + (p.vat_applicable ? (p.vat_amount || 0) : 0), 0)
   const totalExpenses = (expenses || []).reduce((sum, e) => sum + (e.amount || 0), 0)
   const vendorBalanceDifference = totalPurchases - totalVendorPayments
 
@@ -609,4 +609,82 @@ export async function getFinancialSummary(
     vendorPayables: Math.max(vendorBalanceDifference, 0),
     vendorCredits: Math.max(-vendorBalanceDifference, 0),
   }
+}
+
+export type ProjectFinancialRow = {
+  project_id: string
+  project_name: string
+  project_code: string
+  status: string
+  contract_amount: number
+  total_invoiced: number
+  total_received: number
+  client_receivables: number
+  total_purchases: number
+  total_vendor_payments: number
+  vendor_payables: number
+  total_expenses: number
+  net_position: number
+}
+
+export async function getProjectWiseFinancials(
+  queryClient: QueryClient = supabase
+): Promise<ProjectFinancialRow[]> {
+  const [
+    { data: projects },
+    { data: invoices },
+    { data: receipts },
+    { data: pos },
+    { data: vendorPayments },
+    { data: expenses },
+  ] = await Promise.all([
+    queryClient.from('projects').select('id, project_code, name, status, total_amount').order('name'),
+    queryClient.from('invoices').select('project_id, total_amount'),
+    queryClient.from('receipts').select('project_id, amount, vat_amount, vat_applicable'),
+    queryClient.from('purchase_orders').select('project_id, total_amount, status').not('status', 'eq', 'Cancelled'),
+    queryClient.from('vendor_payments').select('project_id, amount, vat_amount, vat_applicable'),
+    queryClient.from('project_expenses').select('project_id, amount'),
+  ])
+
+  return (projects || []).map((project) => {
+    const id = project.id
+
+    const totalInvoiced = (invoices || [])
+      .filter((r) => r.project_id === id)
+      .reduce((sum, r) => sum + (r.total_amount || 0), 0)
+
+    const totalReceived = (receipts || [])
+      .filter((r) => r.project_id === id)
+      .reduce((sum, r) => sum + (r.amount || 0) + (r.vat_applicable ? (r.vat_amount || 0) : 0), 0)
+
+    const totalPurchases = (pos || [])
+      .filter((r) => r.project_id === id)
+      .reduce((sum, r) => sum + (r.total_amount || 0), 0)
+
+    const totalVendorPayments = (vendorPayments || [])
+      .filter((r) => r.project_id === id)
+      .reduce((sum, r) => sum + (r.amount || 0) + (r.vat_applicable ? (r.vat_amount || 0) : 0), 0)
+
+    const totalExpenses = (expenses || [])
+      .filter((r) => r.project_id === id)
+      .reduce((sum, r) => sum + (r.amount || 0), 0)
+
+    const vendorBalance = totalPurchases - totalVendorPayments
+
+    return {
+      project_id: id,
+      project_name: project.name,
+      project_code: project.project_code,
+      status: project.status,
+      contract_amount: project.total_amount || 0,
+      total_invoiced: totalInvoiced,
+      total_received: totalReceived,
+      client_receivables: totalInvoiced - totalReceived,
+      total_purchases: totalPurchases,
+      total_vendor_payments: totalVendorPayments,
+      vendor_payables: Math.max(vendorBalance, 0),
+      total_expenses: totalExpenses,
+      net_position: totalReceived - totalVendorPayments - totalExpenses,
+    }
+  })
 }

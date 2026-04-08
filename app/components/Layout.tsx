@@ -67,6 +67,7 @@ const NAV_ITEMS = [
   { href: '/purchases', label: 'Purchases' },
   { href: '/expenses', label: 'Expenses' },
   { href: '/invoices', label: 'Invoices' },
+  { href: '/vendor-payments', label: 'Vendor Payments' },
   { href: '/reports', label: 'Reports' },
 ]
 

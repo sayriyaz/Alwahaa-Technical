@@ -113,12 +113,12 @@ export async function getVendorBalance(
       .not('status', 'eq', 'Cancelled'),
     queryClient
       .from('vendor_payments')
-      .select('amount')
+      .select('amount, vat_amount, vat_applicable')
       .eq('vendor_id', vendorId),
   ])
 
   const totalPurchases = (purchases || []).reduce((sum, p) => sum + (p.total_amount || 0), 0)
-  const totalPaid = (payments || []).reduce((sum, p) => sum + (p.amount || 0), 0)
+  const totalPaid = (payments || []).reduce((sum, p) => sum + (p.amount || 0) + (p.vat_applicable ? (p.vat_amount || 0) : 0), 0)
   const balanceDifference = totalPurchases - totalPaid
 
   return {

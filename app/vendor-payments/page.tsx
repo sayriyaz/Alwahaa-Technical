@@ -13,6 +13,7 @@ import {
 } from '@/lib/receipts'
 import { formatCurrency, formatDate, getProjects } from '@/lib/projects'
 import { getVendors } from '@/lib/vendors'
+import { getPurchaseOrders } from '@/lib/purchases'
 import { parseVatApplicableValue } from '@/lib/vat'
 
 export default async function VendorPaymentsPage({
@@ -69,6 +70,9 @@ export default async function VendorPaymentsPage({
     getProjects(db),
   ])
   const editingPayment = payments.find((payment) => payment.id === editingPaymentId)
+  const editingPaymentPOs = editingPayment
+    ? await getPurchaseOrders(db, { vendorId: editingPayment.vendor_id })
+    : []
 
   function buildEditHref(paymentId: string) {
     const params = new URLSearchParams(filterParams)
@@ -192,10 +196,11 @@ export default async function VendorPaymentsPage({
           <div className="flex gap-1 py-2">
             <NavItem href="/" label="Dashboard" />
             <NavItem href="/projects" label="Projects" />
-            <NavItem href="/vendors" label="Parties" active />
+            <NavItem href="/vendors" label="Parties" />
             <NavItem href="/purchases" label="Purchases" />
             <NavItem href="/expenses" label="Expenses" />
             <NavItem href="/invoices" label="Invoices" />
+            <NavItem href="/vendor-payments" label="Vendor Payments" active />
             <NavItem href="/reports" label="Reports" />
           </div>
         </div>
@@ -343,7 +348,6 @@ export default async function VendorPaymentsPage({
 
             <form action={updateVendorPaymentAction} className="mt-6 space-y-6">
               <input type="hidden" name="payment_id" value={editingPayment.id} />
-              <input type="hidden" name="purchase_order_id" value={editingPayment.purchase_order_id || ''} />
               <input type="hidden" name="return_to" value={buildSuccessHref('updated')} />
               <input type="hidden" name="error_to" value={buildErrorHref('update_failed')} />
 
@@ -360,6 +364,14 @@ export default async function VendorPaymentsPage({
                     <option value="">General Payment</option>
                     {projects.map((project) => (
                       <option key={project.id} value={project.id}>{project.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Purchase Order" htmlFor="purchase_order_id">
+                  <select id="purchase_order_id" name="purchase_order_id" defaultValue={editingPayment.purchase_order_id || ''} className={inputClassName}>
+                    <option value="">Standalone payment</option>
+                    {editingPaymentPOs.map((po) => (
+                      <option key={po.id} value={po.id}>{po.po_number} — {po.project_name}</option>
                     ))}
                   </select>
                 </Field>

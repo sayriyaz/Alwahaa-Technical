@@ -58,6 +58,7 @@ export default async function ReceiptPrintPage({
           ]}
           totalLabel="Total Received"
           totalValue={formatCurrency(totalReceived)}
+          totalAmount={totalReceived}
         />
       </div>
     </DocumentPrintLayout>

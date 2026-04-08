@@ -7,6 +7,7 @@ import { getRolePermissions } from '@/lib/auth-constants'
 import { createVendorPayment, VENDOR_PAYMENT_METHODS } from '@/lib/receipts'
 import { getVendors } from '@/lib/vendors'
 import { getProjects } from '@/lib/projects'
+import { getPurchaseOrders } from '@/lib/purchases'
 import { parseVatApplicableValue } from '@/lib/vat'
 
 export default async function NewVendorPaymentPage({
@@ -15,6 +16,7 @@ export default async function NewVendorPaymentPage({
   searchParams: Promise<{
     vendor_id?: string | string[]
     project_id?: string | string[]
+    purchase_order_id?: string | string[]
   }>
 }) {
   const { appUser, db } = await requireAuthenticatedAppUser(['admin', 'manager', 'accountant'])
@@ -32,9 +34,10 @@ export default async function NewVendorPaymentPage({
     ? resolvedSearchParams.project_id[0] || ''
     : resolvedSearchParams.project_id || ''
 
-  const [vendors, projects] = await Promise.all([
+  const [vendors, projects, vendorPOs] = await Promise.all([
     getVendors(db),
     getProjects(db),
+    selectedVendorId ? getPurchaseOrders(db, { vendorId: selectedVendorId }) : Promise.resolve([]),
   ])
 
   async function handleSubmit(formData: FormData) {
@@ -49,6 +52,7 @@ export default async function NewVendorPaymentPage({
 
     const vendorId = formData.get('vendor_id') as string
     const projectId = formData.get('project_id') as string
+    const purchaseOrderId = formData.get('purchase_order_id') as string
     const amount = parseFloat(formData.get('amount') as string) || 0
     const vatApplicable = parseVatApplicableValue(formData.get('vat_applicable'))
     const vatAmount = parseFloat(formData.get('vat_amount') as string) || 0
@@ -65,7 +69,7 @@ export default async function NewVendorPaymentPage({
 
     const payment = await createVendorPayment({
       vendor_id: vendorId,
-      purchase_order_id: null,
+      purchase_order_id: purchaseOrderId || null,
       project_id: projectId || null,
       amount,
       vat_applicable: vatApplicable,
@@ -115,10 +119,11 @@ export default async function NewVendorPaymentPage({
           <div className="flex gap-1 py-2">
             <NavItem href="/" label="Dashboard" />
             <NavItem href="/projects" label="Projects" />
-            <NavItem href="/vendors" label="Parties" active />
+            <NavItem href="/vendors" label="Parties" />
             <NavItem href="/purchases" label="Purchases" />
             <NavItem href="/expenses" label="Expenses" />
             <NavItem href="/invoices" label="Invoices" />
+            <NavItem href="/vendor-payments" label="Vendor Payments" active />
             <NavItem href="/reports" label="Reports" />
           </div>
         </div>
@@ -126,7 +131,7 @@ export default async function NewVendorPaymentPage({
 
       <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6">
-          <Link href="/vendors" className="text-sm text-slate-600 hover:text-slate-900">← Back to Parties</Link>
+          <Link href="/vendor-payments" className="text-sm text-slate-600 hover:text-slate-900">← Back to Vendor Payments</Link>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -163,6 +168,23 @@ export default async function NewVendorPaymentPage({
                   <option key={project.id} value={project.id}>{project.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="purchase_order_id" className="block text-sm font-medium text-slate-900">Purchase Order (optional)</label>
+              <select
+                name="purchase_order_id"
+                id="purchase_order_id"
+                className="mt-1 block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+              >
+                <option value="">Standalone payment</option>
+                {vendorPOs.map((po) => (
+                  <option key={po.id} value={po.id}>{po.po_number} — {po.project_name}</option>
+                ))}
+              </select>
+              {!selectedVendorId && (
+                <p className="mt-1 text-xs text-slate-500">Select a vendor above to see their purchase orders.</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -252,7 +274,7 @@ export default async function NewVendorPaymentPage({
                 Record Payment
               </button>
               <Link
-                href="/vendors"
+                href="/vendor-payments"
                 className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Cancel

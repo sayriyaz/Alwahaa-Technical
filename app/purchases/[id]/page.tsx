@@ -91,6 +91,7 @@ export default async function PurchaseOrderDetailPage({
             <NavItem href="/purchases" label="Purchases" active />
             <NavItem href="/expenses" label="Expenses" />
             <NavItem href="/invoices" label="Invoices" />
+            <NavItem href="/vendor-payments" label="Vendor Payments" />
             <NavItem href="/reports" label="Reports" />
           </div>
         </div>

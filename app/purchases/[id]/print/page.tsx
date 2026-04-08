@@ -83,6 +83,7 @@ export default async function PurchaseOrderPrintPage({
           ]}
           totalLabel="Total Amount"
           totalValue={formatCurrency(purchaseOrder.total_amount)}
+          totalAmount={purchaseOrder.total_amount}
         />
       </div>
     </DocumentPrintLayout>

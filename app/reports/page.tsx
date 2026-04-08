@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { AppLogo } from '@/components/app-logo'
 import { requireAuthenticatedAppUser } from '@/lib/auth'
 import { getRolePermissions } from '@/lib/auth-constants'
-import { getFinancialSummary } from '@/lib/receipts'
+import { getFinancialSummary, getProjectWiseFinancials } from '@/lib/receipts'
 import { getProjects, formatCurrency } from '@/lib/projects'
 import { getOutstandingInvoices } from '@/lib/invoices'
 
@@ -24,10 +24,11 @@ export default async function ReportsPage() {
     )
   }
 
-  const [financials, projects, outstandingInvoices] = await Promise.all([
+  const [financials, projects, outstandingInvoices, projectFinancials] = await Promise.all([
     getFinancialSummary(db),
     getProjects(db),
     getOutstandingInvoices(db),
+    getProjectWiseFinancials(db),
   ])
 
   const activeProjects = projects.filter(p => p.status === 'In Progress')
@@ -65,6 +66,7 @@ export default async function ReportsPage() {
             <NavItem href="/purchases" label="Purchases" />
             <NavItem href="/expenses" label="Expenses" />
             <NavItem href="/invoices" label="Invoices" />
+            <NavItem href="/vendor-payments" label="Vendor Payments" />
             <NavItem href="/reports" label="Reports" active />
           </div>
         </div>
@@ -111,6 +113,70 @@ export default async function ReportsPage() {
               <div className="text-sm text-slate-500">Completed</div>
               <div className="mt-1 text-2xl font-bold text-slate-600">{projects.filter(p => p.status === 'Completed').length}</div>
             </div>
+          </div>
+        </div>
+
+        {/* Project-wise Financial Breakdown */}
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-slate-900">Project-wise Financial Breakdown</h3>
+          <p className="mt-1 text-sm text-slate-500">Revenue, costs, and net position per project.</p>
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Project</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Contract</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Invoiced</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Received</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Receivable</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Purchases</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Paid to Vendor</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Expenses</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">Net Position</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {projectFinancials.map((row) => (
+                  <tr key={row.project_id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <Link href={`/projects/${row.project_id}`} className="font-medium text-slate-900 hover:text-blue-700">
+                        {row.project_name}
+                      </Link>
+                      <div className="text-xs text-slate-400">{row.project_code}</div>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                        row.status === 'In Progress' ? 'bg-emerald-100 text-emerald-700' :
+                        row.status === 'Completed' ? 'bg-slate-100 text-slate-600' :
+                        row.status === 'On Hold' ? 'bg-amber-100 text-amber-700' :
+                        row.status === 'Cancelled' ? 'bg-rose-100 text-rose-700' :
+                        'bg-sky-100 text-sky-700'
+                      }`}>
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">{formatCurrency(row.contract_amount)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">{formatCurrency(row.total_invoiced)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-emerald-700 font-medium">{formatCurrency(row.total_received)}</td>
+                    <td className={`whitespace-nowrap px-4 py-3 text-right font-medium ${row.client_receivables > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                      {formatCurrency(row.client_receivables)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">{formatCurrency(row.total_purchases)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">{formatCurrency(row.total_vendor_payments)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right text-slate-700">{formatCurrency(row.total_expenses)}</td>
+                    <td className={`whitespace-nowrap px-4 py-3 text-right font-semibold ${row.net_position >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                      {formatCurrency(row.net_position)}
+                    </td>
+                  </tr>
+                ))}
+                {projectFinancials.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-8 text-center text-slate-500">No projects found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
