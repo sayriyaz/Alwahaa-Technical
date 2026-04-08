@@ -144,6 +144,12 @@ export function DocumentPrintLayout({
           </div>
 
           <header className="relative z-10 border-b border-slate-200 px-[14mm] pb-[6mm] pt-[12mm]">
+            <div className="pointer-events-none absolute inset-x-0 top-[11mm] flex justify-center">
+              <div className="text-center text-[22px] font-extrabold uppercase tracking-[0.32em]" style={{ color: theme.accent }}>
+                {documentLabel}
+              </div>
+            </div>
+
             <div className="flex items-start justify-between gap-[8mm]">
               <div className="max-w-[92mm]">
                 <Image
@@ -159,18 +165,8 @@ export function DocumentPrintLayout({
                 <div className="mt-1 whitespace-pre-wrap text-[9.5px] leading-[1.55] text-slate-600">{address}</div>
               </div>
 
-              <div className="max-w-[74mm] text-right">
-                <div
-                  className="inline-flex rounded-full border px-3 py-1 text-[9px] font-bold uppercase tracking-[0.22em]"
-                  style={{
-                    backgroundColor: theme.accentSoft,
-                    borderColor: theme.badgeBorder,
-                    color: theme.accent,
-                  }}
-                >
-                  {documentLabel}
-                </div>
-                <div className="mt-2 text-[24px] font-extrabold leading-none tracking-tight" style={{ color: theme.accent }}>
+              <div className="max-w-[74mm] pt-[8mm] text-right">
+                <div className="text-[20px] font-extrabold leading-none tracking-tight" style={{ color: theme.accent }}>
                   {documentNumber}
                 </div>
                 <div className="mt-3 text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">Date</div>
@@ -208,7 +204,7 @@ export function DocumentPrintLayout({
                 </div>
               </div>
               <div className="text-center text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                {COMPANY_PROFILE.tagline}
+                {/* {COMPANY_PROFILE.tagline} */}
               </div>
               <div className="space-y-0.5 md:text-right">
                 <div>{COMPANY_PROFILE.contactDetails.emails[0]}</div>
@@ -227,7 +223,7 @@ export function DocumentInfoGrid({ items, columns = 3 }: DocumentInfoGridProps) 
   return (
     <section className="document-info-grid document-keep-together grid gap-4" data-columns={columns}>
       {items.map((item) => (
-        <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
+        <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
           <div className="text-[9px] font-bold uppercase tracking-[0.18em] text-slate-400">{item.label}</div>
           <div className="mt-1 text-sm font-medium text-slate-900">{item.value}</div>
         </div>
@@ -244,7 +240,7 @@ export function DocumentAmountBreakdown({
 }: DocumentAmountBreakdownProps) {
   return (
     <section className="document-keep-together overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_1px_0_rgba(15,23,42,0.02)]">
-      <div className="border-b border-slate-200 px-4 py-3" style={{ backgroundColor: 'var(--doc-accent-soft)' }}>
+      <div className="border-b border-slate-200 px-3 py-2" style={{ backgroundColor: 'var(--doc-accent-soft)' }}>
         <h2 className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: 'var(--doc-accent)' }}>
           {title}
         </h2>
@@ -279,30 +275,46 @@ export function DocumentTextBlock({ title, value }: { title: string; value: stri
 
 export function DocumentBankDetails({ className = '' }: { className?: string }) {
   return (
-    <section className={`document-keep-together rounded-xl border border-slate-200 bg-[#f8fbfd] px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.02)] ${className}`}>
-      <h2 className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Bank Details</h2>
-      <dl className="mt-2 grid gap-x-4 gap-y-2 text-[11px] text-slate-700 md:grid-cols-2">
-        <div>
-          <dt className="font-medium text-slate-500">Account Name</dt>
-          <dd className="mt-0.5 font-medium text-slate-900">{COMPANY_PROFILE.bankDetails.accountName}</dd>
-        </div>
-        <div>
-          <dt className="font-medium text-slate-500">Account Number</dt>
-          <dd className="mt-0.5 font-medium text-slate-900">{COMPANY_PROFILE.bankDetails.accountNumber}</dd>
-        </div>
-        <div>
-          <dt className="font-medium text-slate-500">IBAN</dt>
-          <dd className="mt-0.5 font-medium text-slate-900">{COMPANY_PROFILE.bankDetails.iban}</dd>
-        </div>
-        <div>
-          <dt className="font-medium text-slate-500">Bank</dt>
-          <dd className="mt-0.5 font-medium text-slate-900">{COMPANY_PROFILE.bankDetails.bankName}</dd>
-        </div>
-        <div>
-          <dt className="font-medium text-slate-500">SWIFT Code</dt>
-          <dd className="mt-0.5 font-medium text-slate-900">{COMPANY_PROFILE.bankDetails.swiftCode}</dd>
-        </div>
-      </dl>
+    <section className={`document-keep-together rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.02)] ${className}`}>
+      <h2 className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">Bank Details</h2>
+      <div className="mt-2.5 h-px bg-slate-200" />
+      <div className="mt-3 grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.9fr)] gap-x-6 text-[11px] text-slate-700">
+        <dl className="space-y-4">
+          <div>
+            <dt className="text-[10px] font-medium tracking-[0.02em] text-slate-500">Account Name</dt>
+            <dd className="mt-0.5 border-b border-slate-200 pb-1.5 text-[10px] font-semibold leading-[1.45] whitespace-nowrap text-slate-900">
+              {COMPANY_PROFILE.bankDetails.accountName}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-medium tracking-[0.02em] text-slate-500">IBAN</dt>
+            <dd className="mt-0.5 border-b border-slate-200 pb-1.5 text-[10px] font-semibold leading-[1.45] whitespace-nowrap text-slate-900">
+              {COMPANY_PROFILE.bankDetails.iban}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-medium tracking-[0.02em] text-slate-500">SWIFT Code</dt>
+            <dd className="mt-0.5 text-[11px] font-semibold leading-[1.45] text-slate-900">
+              {COMPANY_PROFILE.bankDetails.swiftCode}
+            </dd>
+          </div>
+        </dl>
+
+        <dl className="space-y-4 pt-[1px]">
+          <div>
+            <dt className="text-[10px] font-medium tracking-[0.02em] text-slate-500">Account Number</dt>
+            <dd className="mt-0.5 text-[11px] font-semibold leading-[1.45] text-slate-900">
+              {COMPANY_PROFILE.bankDetails.accountNumber}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[10px] font-medium tracking-[0.02em] text-slate-500">Bank</dt>
+            <dd className="mt-0.5 text-[11px] font-semibold leading-[1.45] text-slate-900">
+              {COMPANY_PROFILE.bankDetails.bankName}
+            </dd>
+          </div>
+        </dl>
+      </div>
     </section>
   )
 }

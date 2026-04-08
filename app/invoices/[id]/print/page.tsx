@@ -26,7 +26,7 @@ export default async function InvoicePrintPage({
     <DocumentPrintLayout
       backHref={`/invoices/${invoice.id}`}
       backLabel="Back to Invoice"
-      documentLabel="Invoice"
+      documentLabel="Invoice "
       documentNumber={invoice.invoice_number}
       title={invoice.client_name || 'Client Invoice'}
       subtitle={
@@ -77,22 +77,22 @@ export default async function InvoicePrintPage({
         </table>
       </section>
 
-      <div className="ml-auto grid w-full max-w-[180mm] grid-cols-2 items-start gap-4">
-        <DocumentBankDetails className="mt-[18mm]" />
+      <div className="ml-auto w-full max-w-[80mm]">
+        <DocumentAmountBreakdown
+          title="Invoice Summary"
+          rows={[
+            { label: 'Subtotal', value: formatCurrency(invoice.subtotal) },
+            { label: 'VAT', value: invoice.vat_applicable ? formatCurrency(invoice.vat_amount) : 'Not Applicable' },
+            { label: 'Amount Paid', value: formatCurrency(invoice.amount_paid) },
+            // { label: 'Balance Due', value: formatCurrency(invoice.balance_due) },
+          ]}
+          totalLabel="Total Amount"
+          totalValue={formatCurrency(invoice.total_amount)}
+        />
+      </div>
 
-        <div className="document-keep-together">
-          <DocumentAmountBreakdown
-            title="Invoice Summary"
-            rows={[
-              { label: 'Subtotal', value: formatCurrency(invoice.subtotal) },
-              { label: 'VAT', value: invoice.vat_applicable ? formatCurrency(invoice.vat_amount) : 'Not Applicable' },
-              { label: 'Amount Paid', value: formatCurrency(invoice.amount_paid) },
-              { label: 'Balance Due', value: formatCurrency(invoice.balance_due) },
-            ]}
-            totalLabel="Total Amount"
-            totalValue={formatCurrency(invoice.total_amount)}
-          />
-        </div>
+      <div className="mt-[8mm] w-full max-w-[90mm]">
+        <DocumentBankDetails />
       </div>
     </DocumentPrintLayout>
   )
