@@ -166,7 +166,7 @@ export async function getProjects(
   const { data, error } = await query
 
   if (error) {
-    console.error('Error fetching projects:', error)
+    console.error('Error fetching projects:', error?.message, error?.code, error?.details, error?.hint)
     return []
   }
 
