@@ -4,6 +4,7 @@ import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from '@/lib/auth-constants'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const PUBLIC_FILE = /\.[^/]+$/
 
 // Public routes that don't require authentication
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout']
@@ -14,6 +15,7 @@ export async function proxy(request: NextRequest) {
   // Skip middleware for public paths and static assets
   if (
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
+    PUBLIC_FILE.test(pathname) ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon')
   ) {
@@ -64,7 +66,7 @@ export async function proxy(request: NextRequest) {
 
   const cookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: false,
     sameSite: 'lax' as const,
     path: '/',
   }

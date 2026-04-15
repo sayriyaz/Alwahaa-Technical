@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import { createStatelessSupabase } from '@/lib/auth'
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from '@/lib/auth-constants'
 
@@ -49,25 +48,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Set cookies
-    const cookieStore = await cookies()
-    cookieStore.set(ACCESS_TOKEN_COOKIE, data.session.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      path: '/',
-    })
-
-    cookieStore.set(REFRESH_TOKEN_COOKIE, data.session.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      path: '/',
-    })
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       user: {
         id: appUser.id,
@@ -76,6 +57,24 @@ export async function POST(request: NextRequest) {
         role: appUser.role,
       },
     })
+
+    response.cookies.set(ACCESS_TOKEN_COOKIE, data.session.access_token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: '/',
+    })
+
+    response.cookies.set(REFRESH_TOKEN_COOKIE, data.session.refresh_token, {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: '/',
+    })
+
+    return response
   } catch (error) {
     console.error('Login error:', error)
     return NextResponse.json(
