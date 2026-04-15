@@ -8,7 +8,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 // Public routes that don't require authentication
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/logout']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Skip middleware for public paths and static assets
