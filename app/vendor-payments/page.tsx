@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { AppLogo } from '@/components/app-logo'
-import { ManualVatFields } from '@/components/manual-vat-fields'
+import { PaymentAmountField } from '@/components/payment-amount-field'
 import { requireAuthenticatedAppUser } from '@/lib/auth'
 import { getRolePermissions } from '@/lib/auth-constants'
 import {
@@ -384,17 +384,6 @@ export default async function VendorPaymentsPage({
                     className={inputClassName}
                   />
                 </Field>
-                <Field label="Amount Paid (AED)" htmlFor="amount">
-                  <input
-                    id="amount"
-                    name="amount"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    defaultValue={String(editingPayment.amount)}
-                    className={inputClassName}
-                  />
-                </Field>
                 <Field label="Payment Method" htmlFor="payment_method">
                   <select
                     id="payment_method"
@@ -409,10 +398,11 @@ export default async function VendorPaymentsPage({
                 </Field>
               </div>
 
-              <ManualVatFields
-                idPrefix="vendor-payment-edit"
+              <PaymentAmountField
+                initialAmount={editingPayment.amount}
                 initialVatApplicable={editingPayment.vat_applicable}
                 initialVatAmount={editingPayment.vat_amount}
+                amountLabel="Amount Paid (AED)"
               />
 
               <div className="grid gap-4 md:grid-cols-2">

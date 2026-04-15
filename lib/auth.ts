@@ -84,6 +84,9 @@ async function validateAccessToken(accessToken: string | null, refreshToken: str
     return null
   }
 
+  // Token refresh and cookie persistence is handled by middleware.ts
+  // Here we just return the refreshed token for use in the current request
+
   return {
     accessToken: refreshResponse.data.session.access_token,
     user: refreshResponse.data.user,

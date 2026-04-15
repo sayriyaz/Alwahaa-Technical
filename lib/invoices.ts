@@ -1,6 +1,6 @@
 import { getNextDocumentNumber, isUniqueConstraintError } from '@/lib/document-numbers'
 import { supabase, type MaybeRelated, type QueryClient, unwrapRelated } from '@/lib/supabase'
-import { calculateTotalAmount, calculateVatPercentage, normalizeVatAmount } from '@/lib/vat'
+import { calculateTotalAmount, normalizeVatAmount } from '@/lib/vat'
 
 export const INVOICE_STATUSES = ['Draft', 'Sent', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'] as const
 export const EDITABLE_INVOICE_STATUSES = ['Draft', 'Sent', 'Cancelled'] as const
@@ -14,6 +14,9 @@ export type InvoiceItem = {
   unit: string | null
   unit_price: number
   total_price: number
+  vat_applicable: boolean
+  vat_rate: number
+  vat_amount: number
 }
 
 export type InvoiceSummary = {
@@ -29,7 +32,6 @@ export type InvoiceSummary = {
   due_date: string | null
   description: string | null
   subtotal: number
-  vat_percentage: number
   vat_applicable: boolean
   vat_amount: number
   total_amount: number
@@ -47,6 +49,7 @@ export type InvoiceDetail = InvoiceSummary & {
 }
 
 export type CreateInvoiceInput = {
+  invoice_number: string
   project_id: string
   client_id: string
   invoice_date: string
@@ -55,7 +58,6 @@ export type CreateInvoiceInput = {
   description: string | null
   vat_applicable: boolean
   vat_amount: number
-  vat_percentage?: number
   status?: InvoiceStatus
   notes: string | null
 }
@@ -65,19 +67,21 @@ export type UpdateInvoiceInput = {
   description: string | null
   notes: string | null
   phase_id: string | null
+  subtotal?: number
   vat_applicable: boolean
   vat_amount: number
+  total_amount?: number
   status: (typeof EDITABLE_INVOICE_STATUSES)[number]
 }
 
 type InvoiceListRow = InvoiceSummary & {
   projects: MaybeRelated<{ name: string; project_code: string }>
-  clients: MaybeRelated<{ name: string; address: string | null }>
+  contractors: MaybeRelated<{ name: string; address: string | null }>
 }
 
 type InvoiceDetailRow = Omit<InvoiceDetail, 'project_name' | 'client_name' | 'phase_name' | 'items'> & {
   projects: MaybeRelated<{ name: string; project_code: string }>
-  clients: MaybeRelated<{ name: string; address: string | null }>
+  contractors: MaybeRelated<{ name: string; address: string | null }>
   project_phases: MaybeRelated<{ name: string }>
 }
 
@@ -89,10 +93,10 @@ export async function getInvoices(
     .from('invoices')
     .select(`
       id, invoice_number, project_id, client_id, invoice_date, due_date,
-      description, subtotal, vat_percentage, vat_applicable, vat_amount, total_amount,
+      description, subtotal, vat_applicable, vat_amount, total_amount,
       amount_paid, balance_due, status, created_at,
       projects:project_id (name, project_code),
-      clients:client_id (name, address)
+      contractors:client_id (name, address)
     `)
     .order('created_at', { ascending: false })
 
@@ -116,7 +120,7 @@ export async function getInvoices(
   const { data, error } = await query
 
   if (error) {
-    console.error('Error fetching invoices:', error)
+    console.error('Error fetching invoices:', error.message, error.code, error.details, error.hint)
     return []
   }
 
@@ -126,8 +130,8 @@ export async function getInvoices(
     ...row,
     project_name: unwrapRelated(row.projects)?.name,
     project_code: unwrapRelated(row.projects)?.project_code,
-    client_name: unwrapRelated(row.clients)?.name,
-    client_address: unwrapRelated(row.clients)?.address,
+    client_name: unwrapRelated(row.contractors)?.name,
+    client_address: unwrapRelated(row.contractors)?.address,
   }))
 }
 
@@ -140,7 +144,7 @@ export async function getInvoiceById(
     .select(`
       *,
       projects:project_id (name, project_code),
-      clients:client_id (name, address),
+      contractors:client_id (name, address),
       project_phases:phase_id (name)
     `)
     .eq('id', id)
@@ -166,8 +170,8 @@ export async function getInvoiceById(
     ...invoice,
     project_name: unwrapRelated(invoice.projects)?.name,
     project_code: unwrapRelated(invoice.projects)?.project_code,
-    client_name: unwrapRelated(invoice.clients)?.name,
-    client_address: unwrapRelated(invoice.clients)?.address,
+    client_name: unwrapRelated(invoice.contractors)?.name,
+    client_address: unwrapRelated(invoice.contractors)?.address,
     phase_name: unwrapRelated(invoice.project_phases)?.name,
     items: items || [],
   }
@@ -200,46 +204,38 @@ export async function createInvoice(
     return null
   }
 
-  // Calculate totals
+  // Calculate totals from per-item VAT
   const subtotal = items.reduce((sum, item) => sum + (item.total_price || 0), 0)
-  const vatApplicable = invoice.vat_applicable
-  const vatAmount = normalizeVatAmount(subtotal, vatApplicable, invoice.vat_amount || 0)
-  const totalAmount = calculateTotalAmount(subtotal, vatApplicable, vatAmount)
+  const vatAmount = items.reduce((sum, item) => sum + (item.vat_amount || 0), 0)
+  const vatApplicable = vatAmount > 0 || invoice.vat_applicable
+  const totalAmount = subtotal + vatAmount
 
   let createdInvoice: { id: string } & Record<string, unknown> | null = null
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const invoiceNumber = await getNextDocumentNumber(
-      { table: 'invoices', column: 'invoice_number', prefix: 'INV' },
-      queryClient
-    )
+  const { data, error } = await queryClient
+    .from('invoices')
+    .insert({
+      ...invoice,
+      invoice_number: invoice.invoice_number,
+      subtotal,
+      vat_applicable: vatApplicable,
+      vat_amount: vatAmount,
+      total_amount: totalAmount,
+      amount_paid: 0,
+      balance_due: totalAmount,
+      status: invoice.status ?? 'Sent',
+    })
+    .select()
+    .single()
 
-    const { data, error } = await queryClient
-      .from('invoices')
-      .insert({
-        ...invoice,
-        invoice_number: invoiceNumber,
-        subtotal,
-        vat_percentage: invoice.vat_percentage ?? calculateVatPercentage(subtotal, vatApplicable, vatAmount),
-        vat_applicable: vatApplicable,
-        vat_amount: vatAmount,
-        total_amount: totalAmount,
-        amount_paid: 0,
-        balance_due: totalAmount,
-        status: invoice.status ?? 'Sent',
-      })
-      .select()
-      .single()
-
-    if (!error && data) {
-      createdInvoice = data
-      break
+  if (!error && data) {
+    createdInvoice = data
+  } else {
+    if (isUniqueConstraintError(error)) {
+      return { error: 'duplicate_number' } as const
     }
-
-    if (!isUniqueConstraintError(error) || attempt === 3) {
-      console.error('Error creating invoice:', error)
-      return null
-    }
+    console.error('Error creating invoice:', error)
+    return null
   }
 
   if (!createdInvoice) {
@@ -331,11 +327,24 @@ export async function updateInvoice(
   }
 
   const updateData: Partial<
-    Pick<InvoiceSummary, 'total_amount' | 'balance_due' | 'status' | 'vat_applicable' | 'vat_amount' | 'vat_percentage'> &
+    Pick<InvoiceSummary, 'subtotal' | 'total_amount' | 'balance_due' | 'status' | 'vat_applicable' | 'vat_amount'> &
     Pick<UpdateInvoiceInput, 'due_date' | 'description' | 'notes' | 'phase_id'>
   > = { ...updates }
 
-  if (updates.vat_amount !== undefined || updates.vat_applicable !== undefined) {
+  if (updates.total_amount !== undefined) {
+    // Totals already computed from items by caller
+    const subtotal = updates.subtotal ?? current.subtotal
+    const totalAmount = updates.total_amount
+    const balanceDue = Math.max(totalAmount - current.amount_paid, 0)
+    updateData.subtotal = subtotal
+    updateData.vat_applicable = updates.vat_applicable
+    updateData.vat_amount = updates.vat_amount
+    updateData.total_amount = totalAmount
+    updateData.balance_due = balanceDue
+    if (current.amount_paid > 0) {
+      updateData.status = balanceDue === 0 ? 'Paid' : 'Partially Paid'
+    }
+  } else if (updates.vat_amount !== undefined || updates.vat_applicable !== undefined) {
     const vatApplicable = updates.vat_applicable ?? current.vat_applicable
     const vatAmount = normalizeVatAmount(current.subtotal, vatApplicable, updates.vat_amount ?? current.vat_amount)
     const totalAmount = calculateTotalAmount(current.subtotal, vatApplicable, vatAmount)
@@ -343,7 +352,6 @@ export async function updateInvoice(
 
     updateData.vat_applicable = vatApplicable
     updateData.vat_amount = vatAmount
-    updateData.vat_percentage = calculateVatPercentage(current.subtotal, vatApplicable, vatAmount)
     updateData.total_amount = totalAmount
     updateData.balance_due = balanceDue
 
@@ -367,6 +375,35 @@ export async function updateInvoice(
   }
 
   return data
+}
+
+export type InvoiceItemInput = {
+  description: string
+  quantity: number
+  unit: string | null
+  unit_price: number
+  total_price: number
+  vat_applicable: boolean
+  vat_rate: number
+  vat_amount: number
+}
+
+export async function updateInvoiceItems(
+  invoiceId: string,
+  items: InvoiceItemInput[],
+  queryClient: QueryClient = supabase
+) {
+  await queryClient.from('invoice_items').delete().eq('invoice_id', invoiceId)
+
+  if (items.length === 0) return
+
+  const { error } = await queryClient.from('invoice_items').insert(
+    items.map((item) => ({ ...item, invoice_id: invoiceId }))
+  )
+
+  if (error) {
+    console.error('Error updating invoice items:', error)
+  }
 }
 
 export async function deleteInvoice(
@@ -411,7 +448,7 @@ export async function getOutstandingInvoices(
     .select(`
       *,
       projects:project_id (name, project_code),
-      clients:client_id (name)
+      contractors:client_id (name)
     `)
     .gt('balance_due', 0)
     .not('status', 'in', '("Paid","Cancelled")')
@@ -428,6 +465,6 @@ export async function getOutstandingInvoices(
     ...row,
     project_name: unwrapRelated(row.projects)?.name,
     project_code: unwrapRelated(row.projects)?.project_code,
-    client_name: unwrapRelated(row.clients)?.name,
+    client_name: unwrapRelated(row.contractors)?.name,
   }))
 }

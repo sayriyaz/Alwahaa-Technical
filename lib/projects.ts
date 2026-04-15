@@ -17,8 +17,6 @@ export type ProjectSummary = {
   client_id: string
   client_name?: string
   work_type: ProjectWorkType
-  main_contractor_id: string | null
-  main_contractor_name?: string
   location: string
   contract_value: number
   vat_applicable: boolean
@@ -67,7 +65,6 @@ export type CreateProjectInput = {
   client_id: string
   name: string
   work_type: ProjectWorkType
-  main_contractor_id: string | null
   location: string
   description: string | null
   contract_value: number
@@ -84,7 +81,6 @@ export type CreateProjectInput = {
 export type UpdateProjectInput = {
   name: string
   work_type: ProjectWorkType
-  main_contractor_id: string | null
   location: string
   description: string | null
   contract_value: number
@@ -115,22 +111,19 @@ export type CreateProjectPhaseInput = {
 export type UpdateProjectPhaseInput = Omit<CreateProjectPhaseInput, 'project_id'>
 
 type ProjectRelationRow = ProjectSummary & {
-  clients: MaybeRelated<{ name: string }>
   contractors: MaybeRelated<{ name: string }>
 }
 
 type ProjectDetailRow = Omit<ProjectDetail, 'client_name' | 'phases' | 'totals'> & {
-  clients: MaybeRelated<{ name: string }>
   contractors: MaybeRelated<{ name: string }>
 }
 
 const PROJECT_SELECT = `
-  id, project_code, name, client_id, work_type, main_contractor_id, location, contract_value,
+  id, project_code, name, client_id, work_type, location, contract_value,
   vat_applicable, vat_amount, total_amount,
   start_date, expected_completion, actual_completion, status,
   assigned_to, created_at,
-  clients:client_id (name),
-  contractors:main_contractor_id (name)
+  contractors:client_id (name)
 `
 
 export type ProjectFilters = {
@@ -181,8 +174,7 @@ export async function getProjects(
 
   return rows.map((row) => ({
     ...row,
-    client_name: unwrapRelated(row.clients)?.name,
-    main_contractor_name: unwrapRelated(row.contractors)?.name,
+    client_name: unwrapRelated(row.contractors)?.name,
   }))
 }
 
@@ -209,8 +201,7 @@ export async function searchProjects(
 
   return rows.map((row) => ({
     ...row,
-    client_name: unwrapRelated(row.clients)?.name,
-    main_contractor_name: unwrapRelated(row.contractors)?.name,
+    client_name: unwrapRelated(row.contractors)?.name,
   }))
 }
 
@@ -222,8 +213,7 @@ export async function getProjectById(
     .from('projects')
     .select(`
       *,
-      clients:client_id (name),
-      contractors:main_contractor_id (name)
+      contractors:client_id (name)
     `)
     .eq('id', id)
     .single()
@@ -248,8 +238,7 @@ export async function getProjectById(
 
   return {
     ...project,
-    client_name: unwrapRelated(project.clients)?.name,
-    main_contractor_name: unwrapRelated(project.contractors)?.name,
+    client_name: unwrapRelated(project.contractors)?.name,
     phases: phases || [],
     totals: totalsData?.[0] || null,
   }

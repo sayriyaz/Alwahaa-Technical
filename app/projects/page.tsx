@@ -27,7 +27,7 @@ import {
   type ProjectFilters,
 } from '@/lib/projects'
 import { getRolePermissions } from '@/lib/auth-constants'
-import { getClients } from '@/lib/clients'
+import { getContractors } from '@/lib/contractors'
 import { SearchFilters } from './SearchFilters'
 
 interface ProjectsPageProps {
@@ -69,7 +69,7 @@ export default async function ProjectsPage({ searchParams }: ProjectsPageProps) 
 
 async function FiltersSection() {
   const auth = await requireAuthenticatedAppUser()
-  const clients = await getClients(auth.db)
+  const clients = await getContractors(auth.db)
 
   return <SearchFilters clients={clients} />
 }

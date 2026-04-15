@@ -6,7 +6,6 @@ import { ClearableDateInput } from '@/components/clearable-date-input'
 import { ProjectCommercialFields } from '@/components/project-commercial-fields'
 import { requireAuthenticatedAppUser } from '@/lib/auth'
 import { getRolePermissions } from '@/lib/auth-constants'
-import { getContractors } from '@/lib/contractors'
 import {
   PROJECT_DOCUMENT_TYPES,
   deleteProjectDocument,
@@ -43,9 +42,8 @@ export default async function ProjectDetailPage({
   const documentStatus = Array.isArray(resolvedSearchParams.documents)
     ? resolvedSearchParams.documents[0] || ''
     : resolvedSearchParams.documents || ''
-  const [project, contractors, projectDocuments] = await Promise.all([
+  const [project, projectDocuments] = await Promise.all([
     getProjectById(id, db),
-    getContractors(db),
     getProjectDocuments(id, db),
   ])
 
@@ -66,7 +64,6 @@ export default async function ProjectDetailPage({
     const projectId = formData.get('project_id') as string
     const name = formData.get('name') as string
     const workTypeValue = formData.get('work_type') as string
-    const mainContractorId = formData.get('main_contractor_id') as string
     const location = formData.get('location') as string
     const contractValue = parseFloat(formData.get('contract_value') as string) || 0
     const vatApplicable = parseVatApplicableValue(formData.get('vat_applicable'))
@@ -89,7 +86,6 @@ export default async function ProjectDetailPage({
     await updateProject(projectId, {
       name,
       work_type: selectedWorkType,
-      main_contractor_id: mainContractorId || null,
       location,
       contract_value: contractValue,
       vat_applicable: vatApplicable,
@@ -315,11 +311,6 @@ export default async function ProjectDetailPage({
               <h2 className="mt-1 text-2xl font-bold text-slate-900">{project.name}</h2>
               <p className="mt-1 text-sm text-slate-600">{project.client_name}</p>
               <p className="text-sm text-slate-500">{project.location}</p>
-              <p className="text-sm text-slate-500">
-                {project.work_type === 'Subcontract'
-                  ? `Main Contractor: ${project.main_contractor_name || 'Not assigned'}`
-                  : 'Direct project'}
-              </p>
               <div className="mt-3 flex flex-wrap gap-3">
                 <Link
                   href={`/projects/${project.id}/client-summary`}
@@ -348,7 +339,6 @@ export default async function ProjectDetailPage({
             <SummaryCard title="Expected Completion" value={formatDate(project.expected_completion)} />
             <SummaryCard title="Assigned To" value={project.assigned_to || '-'} />
             <SummaryCard title="Work Type" value={project.work_type} />
-            <SummaryCard title="Main Contractor" value={project.main_contractor_name || '-'} />
           </div>
 
           {(project.description || project.notes) && (
@@ -395,28 +385,6 @@ export default async function ProjectDetailPage({
                       <option key={workType} value={workType}>{workType}</option>
                     ))}
                   </select>
-                </Field>
-                <Field label="Main Contractor" htmlFor="main_contractor_id">
-                  <div className="space-y-2">
-                    <select
-                      id="main_contractor_id"
-                      name="main_contractor_id"
-                      defaultValue={project.main_contractor_id || ''}
-                      className={inputClassName}
-                    >
-                      <option value="">Direct project / no main contractor</option>
-                      {contractors.map((contractor) => (
-                        <option key={contractor.id} value={contractor.id}>{contractor.name} ({contractor.party_type})</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-slate-500">
-                      <Link href="/vendors/new?type=Contractor" className="text-slate-900 underline">
-                        + Add new contractor
-                      </Link>
-                      {' · '}
-                      <Link href="/vendors" className="text-slate-900 underline">Manage parties</Link>
-                    </p>
-                  </div>
                 </Field>
                 <Field label="Location" htmlFor="location">
                   <input

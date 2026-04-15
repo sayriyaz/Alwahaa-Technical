@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { AppLogo } from '@/components/app-logo'
-import { ManualVatFields } from '@/components/manual-vat-fields'
+import { PaymentAmountField } from '@/components/payment-amount-field'
 import { requireAuthenticatedAppUser } from '@/lib/auth'
 import { getRolePermissions } from '@/lib/auth-constants'
 import { createVendorPayment, VENDOR_PAYMENT_METHODS } from '@/lib/receipts'
@@ -17,6 +17,7 @@ export default async function NewVendorPaymentPage({
     vendor_id?: string | string[]
     project_id?: string | string[]
     purchase_order_id?: string | string[]
+    error?: string
   }>
 }) {
   const { appUser, db } = await requireAuthenticatedAppUser(['admin', 'manager', 'accountant'])
@@ -33,6 +34,7 @@ export default async function NewVendorPaymentPage({
   const selectedProjectId = Array.isArray(resolvedSearchParams.project_id)
     ? resolvedSearchParams.project_id[0] || ''
     : resolvedSearchParams.project_id || ''
+  const errorCode = resolvedSearchParams.error || ''
 
   const [vendors, projects, vendorPOs] = await Promise.all([
     getVendors(db),
@@ -50,6 +52,7 @@ export default async function NewVendorPaymentPage({
       redirect('/access-denied')
     }
 
+    const paymentNumber = (formData.get('payment_number') as string || '').trim()
     const vendorId = formData.get('vendor_id') as string
     const projectId = formData.get('project_id') as string
     const purchaseOrderId = formData.get('purchase_order_id') as string
@@ -63,11 +66,12 @@ export default async function NewVendorPaymentPage({
     const notes = formData.get('notes') as string
     const selectedPaymentMethod = VENDOR_PAYMENT_METHODS.find((method) => method === paymentMethod)
 
-    if (!vendorId || amount <= 0 || !selectedPaymentMethod) {
+    if (!paymentNumber || !vendorId || amount <= 0 || !selectedPaymentMethod) {
       return
     }
 
     const payment = await createVendorPayment({
+      payment_number: paymentNumber,
       vendor_id: vendorId,
       purchase_order_id: purchaseOrderId || null,
       project_id: projectId || null,
@@ -81,6 +85,9 @@ export default async function NewVendorPaymentPage({
       notes: notes || null,
     }, db)
 
+    if (payment && 'error' in payment && payment.error === 'duplicate_number') {
+      redirect(`/vendor-payments/new?error=duplicate_number&vendor_id=${vendorId}`)
+    }
     if (payment) {
       const redirectParams = new URLSearchParams()
       if (vendorId) redirectParams.set('vendor_id', vendorId)
@@ -138,7 +145,18 @@ export default async function NewVendorPaymentPage({
           <h2 className="text-xl font-semibold text-slate-900">Pay Vendor</h2>
           <p className="mt-1 text-sm text-slate-600">Record a payment to a supplier or contractor</p>
 
+          {errorCode === 'duplicate_number' && (
+            <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              ⚠️ That payment number already exists. Please use a different number.
+            </div>
+          )}
+
           <form action={handleSubmit} className="mt-6 space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-900 mb-1">Payment Number *</label>
+              <input type="text" name="payment_number" required placeholder="e.g., PAY-2026-001" className="block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 sm:text-sm" />
+            </div>
+
             <div>
               <label htmlFor="vendor_id" className="block text-sm font-medium text-slate-900">Vendor *</label>
               <select
@@ -187,35 +205,17 @@ export default async function NewVendorPaymentPage({
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div>
-                <label htmlFor="amount" className="block text-sm font-medium text-slate-900">Amount Paid (AED) *</label>
-                <input
-                  type="number"
-                  name="amount"
-                  id="amount"
-                  required
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  className="mt-1 block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
-              </div>
-              <div>
-                <label htmlFor="payment_date" className="block text-sm font-medium text-slate-900">Payment Date</label>
-                <input
-                  type="date"
-                  name="payment_date"
-                  id="payment_date"
-                  defaultValue={new Date().toISOString().split('T')[0]}
-                  className="mt-1 block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
-              </div>
+            <div>
+              <label htmlFor="payment_date" className="block text-sm font-medium text-slate-900">Payment Date</label>
+              <input
+                type="date"
+                name="payment_date"
+                id="payment_date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+                className="mt-1 block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+              />
             </div>
-            <ManualVatFields idPrefix="vendor-payment-create" initialVatApplicable initialVatAmount={0} />
-            <p className="text-xs text-slate-500">
-              Enter the full paid amount here. VAT is recorded separately below and is not auto-calculated.
-            </p>
+            <PaymentAmountField amountLabel="Amount Paid (AED)" />
 
             <div>
               <label htmlFor="payment_method" className="block text-sm font-medium text-slate-900">Payment Method *</label>

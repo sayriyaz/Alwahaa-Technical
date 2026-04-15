@@ -50,7 +50,7 @@ export type VendorPayment = {
 
 export type CreateReceiptInput = Omit<
   Receipt,
-  'id' | 'created_at' | 'receipt_number' | 'invoice_number' | 'project_name' | 'client_name'
+  'id' | 'created_at' | 'invoice_number' | 'project_name' | 'client_name'
 >
 
 export type UpdateReceiptInput = Pick<
@@ -60,7 +60,7 @@ export type UpdateReceiptInput = Pick<
 
 export type CreateVendorPaymentInput = Omit<
   VendorPayment,
-  'id' | 'created_at' | 'payment_number' | 'vendor_name' | 'po_number' | 'project_name'
+  'id' | 'created_at' | 'vendor_name' | 'po_number' | 'project_name'
 >
 
 export type UpdateVendorPaymentInput = Pick<
@@ -204,39 +204,25 @@ export async function createReceipt(
   const vatApplicable = receipt.vat_applicable
   const vatAmount = normalizeVatAmount(receipt.amount, vatApplicable, receipt.vat_amount)
 
-  let createdReceipt: Record<string, unknown> | null = null
+  const { data, error } = await queryClient
+    .from('receipts')
+    .insert({
+      ...receipt,
+      vat_applicable: vatApplicable,
+      vat_amount: vatAmount,
+    })
+    .select()
+    .single()
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const receiptNumber = await getNextDocumentNumber(
-      { table: 'receipts', column: 'receipt_number', prefix: 'REC' },
-      queryClient
-    )
-
-    const { data, error } = await queryClient
-      .from('receipts')
-      .insert({
-        ...receipt,
-        receipt_number: receiptNumber,
-        vat_applicable: vatApplicable,
-        vat_amount: vatAmount,
-      })
-      .select()
-      .single()
-
-    if (!error && data) {
-      createdReceipt = data
-      break
+  if (!data || error) {
+    if (isUniqueConstraintError(error)) {
+      return { error: 'duplicate_number' } as const
     }
-
-    if (!isUniqueConstraintError(error) || attempt === 3) {
-      console.error('Error creating receipt:', error)
-      return null
-    }
-  }
-
-  if (!createdReceipt) {
+    console.error('Error creating receipt:', error)
     return null
   }
+
+  const createdReceipt = data
 
   await syncInvoiceReceiptState(receipt.invoice_id, queryClient)
 
@@ -398,34 +384,25 @@ export async function createVendorPayment(
   const vatApplicable = payment.vat_applicable
   const vatAmount = normalizeVatAmount(payment.amount, vatApplicable, payment.vat_amount)
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const paymentNumber = await getNextDocumentNumber(
-      { table: 'vendor_payments', column: 'payment_number', prefix: 'VP' },
-      queryClient
-    )
+  const { data, error } = await queryClient
+    .from('vendor_payments')
+    .insert({
+      ...payment,
+      vat_applicable: vatApplicable,
+      vat_amount: vatAmount,
+    })
+    .select()
+    .single()
 
-    const { data, error } = await queryClient
-      .from('vendor_payments')
-      .insert({
-        ...payment,
-        payment_number: paymentNumber,
-        vat_applicable: vatApplicable,
-        vat_amount: vatAmount,
-      })
-      .select()
-      .single()
-
-    if (!error) {
-      return data
+  if (!data || error) {
+    if (isUniqueConstraintError(error)) {
+      return { error: 'duplicate_number' } as const
     }
-
-    if (!isUniqueConstraintError(error) || attempt === 3) {
-      console.error('Error creating vendor payment:', error)
-      return null
-    }
+    console.error('Error creating vendor payment:', error)
+    return null
   }
 
-  return null
+  return data
 }
 
 export async function updateVendorPayment(

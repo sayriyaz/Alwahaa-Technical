@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { AppLogo } from '@/components/app-logo'
-import { ManualVatFields } from '@/components/manual-vat-fields'
+import { InvoiceItemsField } from '@/components/invoice-items-field'
 import { requireAuthenticatedAppUser } from '@/lib/auth'
 import { getRolePermissions } from '@/lib/auth-constants'
 import {
@@ -10,9 +10,9 @@ import {
   getInvoiceById,
   getInvoiceStatusClasses,
   updateInvoice,
+  updateInvoiceItems,
 } from '@/lib/invoices'
 import { formatCurrency, formatDate, toDateInputValue } from '@/lib/projects'
-import { parseVatApplicableValue } from '@/lib/vat'
 
 export default async function InvoiceDetailPage({
   params,
@@ -42,28 +42,56 @@ export default async function InvoiceDetailPage({
 
     const invoiceId = formData.get('invoice_id') as string
     const dueDate = formData.get('due_date') as string
-    const vatApplicable = parseVatApplicableValue(formData.get('vat_applicable'))
-    const vatAmount = parseFloat(formData.get('vat_amount') as string) || 0
     const description = formData.get('description') as string
     const notes = formData.get('notes') as string
     const statusValue = formData.get('status') as string
     const selectedStatus = EDITABLE_INVOICE_STATUSES.find((status) => status === statusValue)
 
-    if (!invoiceId) {
-      return
-    }
+    if (!invoiceId) return
+
+    // Parse line items
+    const itemDescriptions = formData.getAll('item_description[]') as string[]
+    const itemQuantities = formData.getAll('item_quantity[]') as string[]
+    const itemUnits = formData.getAll('item_unit[]') as string[]
+    const itemPrices = formData.getAll('item_price[]') as string[]
+    const itemVatApplicables = formData.getAll('item_vat_applicable[]') as string[]
+    const itemVatRates = formData.getAll('item_vat_rate[]') as string[]
+
+    const items = itemDescriptions.map((desc, i) => {
+      const qty = parseFloat(itemQuantities[i]) || 0
+      const price = parseFloat(itemPrices[i]) || 0
+      const vatApplicable = itemVatApplicables[i] === 'true'
+      const vatRate = vatApplicable ? (parseFloat(itemVatRates[i]) || 0) : 0
+      const totalPrice = qty * price
+      const vatAmount = Math.round(totalPrice * vatRate) / 100
+      return {
+        description: desc,
+        quantity: qty,
+        unit: itemUnits[i] || null,
+        unit_price: price,
+        total_price: totalPrice,
+        vat_applicable: vatApplicable,
+        vat_rate: vatRate,
+        vat_amount: vatAmount,
+      }
+    }).filter((item) => item.description && item.unit_price > 0)
+
+    const subtotal = items.reduce((s, it) => s + it.total_price, 0)
+    const vatAmount = items.reduce((s, it) => s + it.vat_amount, 0)
+
+    await updateInvoiceItems(invoiceId, items, db)
 
     const updates: Parameters<typeof updateInvoice>[1] = {
       due_date: dueDate || null,
-      vat_applicable: vatApplicable,
+      subtotal,
+      vat_applicable: vatAmount > 0,
       vat_amount: vatAmount,
+      total_amount: subtotal + vatAmount,
       description: description || null,
       notes: notes || null,
     }
 
-    if (selectedStatus) {
-      updates.status = selectedStatus
-    }
+    if (selectedStatus) updates.status = selectedStatus
 
     await updateInvoice(invoiceId, updates, db)
 
@@ -218,11 +246,17 @@ export default async function InvoiceDetailPage({
                 </Field>
               </div>
 
-              <ManualVatFields
-                idPrefix="invoice-edit"
-                initialVatApplicable={invoice.vat_applicable}
-                initialVatAmount={invoice.vat_amount}
-              />
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-2">Line Items</label>
+                <InvoiceItemsField initialItems={invoice.items.map((item) => ({
+                  description: item.description,
+                  quantity: item.quantity,
+                  unit: item.unit,
+                  unit_price: item.unit_price,
+                  vat_applicable: item.vat_applicable ?? false,
+                  vat_rate: item.vat_rate ?? 0,
+                }))} />
+              </div>
 
               <Field label="Description" htmlFor="description">
                 <textarea
@@ -254,37 +288,6 @@ export default async function InvoiceDetailPage({
           </section>
         )}
 
-        <div className="mt-8">
-          <h3 className="text-lg font-semibold text-slate-900">Invoice Items</h3>
-          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            {invoice.items.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">No line items were found for this invoice.</div>
-            ) : (
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Qty</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Unit</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Unit Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {invoice.items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-6 py-4 text-sm text-slate-700">{item.description}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{item.quantity}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{item.unit || '-'}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{formatCurrency(item.unit_price)}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(item.total_price)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
       </main>
     </div>
   )

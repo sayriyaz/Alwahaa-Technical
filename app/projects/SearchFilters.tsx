@@ -5,10 +5,10 @@ import { useCallback, useState } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
 import { PROJECT_STATUSES, PROJECT_WORK_TYPES } from '@/lib/projects'
-import type { Client } from '@/lib/clients'
+import type { Contractor } from '@/lib/contractors'
 
 interface SearchFiltersProps {
-  clients: Client[]
+  clients: Contractor[]
 }
 
 export function SearchFilters({ clients }: SearchFiltersProps) {

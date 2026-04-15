@@ -39,7 +39,6 @@ export default async function ProjectClientSummaryPage({
           { label: 'Start Date', value: formatDate(project.start_date) },
           { label: 'Expected Completion', value: formatDate(project.expected_completion) },
           { label: 'Work Type', value: project.work_type },
-          { label: 'Main Contractor', value: project.main_contractor_name || '-' },
           { label: 'Status', value: project.status },
         ]}
       />

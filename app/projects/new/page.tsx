@@ -4,7 +4,6 @@ import { AppLogo } from '@/components/app-logo'
 import { ProjectCommercialFields } from '@/components/project-commercial-fields'
 import { requireAuthenticatedAppUser } from '@/lib/auth'
 import { getRolePermissions } from '@/lib/auth-constants'
-import { getClients } from '@/lib/clients'
 import { getContractors } from '@/lib/contractors'
 import { createProject, PROJECT_STATUSES, PROJECT_WORK_TYPES } from '@/lib/projects'
 import { parseVatApplicableValue } from '@/lib/vat'
@@ -12,7 +11,7 @@ import { parseVatApplicableValue } from '@/lib/vat'
 export default async function NewProjectPage({
   searchParams,
 }: {
-  searchParams: Promise<{ client_id?: string | string[]; contractor_id?: string | string[] }>
+  searchParams: Promise<{ client_id?: string | string[] }>
 }) {
   const { appUser, db } = await requireAuthenticatedAppUser(['admin', 'manager'])
   const permissions = getRolePermissions(appUser.role)
@@ -20,18 +19,11 @@ export default async function NewProjectPage({
   const preselectedClientId = Array.isArray(resolvedSearchParams.client_id)
     ? resolvedSearchParams.client_id[0] || ''
     : resolvedSearchParams.client_id || ''
-  const preselectedContractorId = Array.isArray(resolvedSearchParams.contractor_id)
-    ? resolvedSearchParams.contractor_id[0] || ''
-    : resolvedSearchParams.contractor_id || ''
-
   if (!permissions.canCreateProjects) {
     redirect('/access-denied')
   }
 
-  const [clients, contractors] = await Promise.all([
-    getClients(db),
-    getContractors(db),
-  ])
+  const clients = await getContractors(db)
 
   async function handleSubmit(formData: FormData) {
     'use server'
@@ -46,7 +38,6 @@ export default async function NewProjectPage({
     const name = formData.get('name') as string
     const clientId = formData.get('client_id') as string
     const workTypeValue = formData.get('work_type') as string
-    const mainContractorId = formData.get('main_contractor_id') as string
     const location = formData.get('location') as string
     const contractValue = parseFloat(formData.get('contract_value') as string) || 0
     const vatApplicable = parseVatApplicableValue(formData.get('vat_applicable'))
@@ -65,7 +56,6 @@ export default async function NewProjectPage({
       name,
       client_id: clientId,
       work_type: selectedWorkType,
-      main_contractor_id: mainContractorId || null,
       location,
       contract_value: contractValue,
       vat_applicable: vatApplicable,
@@ -182,14 +172,14 @@ export default async function NewProjectPage({
               <select name="client_id" required defaultValue={preselectedClientId} className="fi">
                 <option value="">Select a client</option>
                 {clients.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>{c.name} · {c.party_type}</option>
                 ))}
               </select>
             </FormField>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField label="Work Type">
-                <select name="work_type" defaultValue={preselectedContractorId ? 'Subcontract' : 'Direct'} className="fi">
+                <select name="work_type" defaultValue="Direct" className="fi">
                   {PROJECT_WORK_TYPES.map((w) => (
                     <option key={w} value={w}>{w}</option>
                   ))}
@@ -201,23 +191,6 @@ export default async function NewProjectPage({
               </FormField>
             </div>
 
-            <FormField
-              label="Main Contractor"
-              hint={
-                <span>
-                  <Link href="/contractors/new?return_to=/projects/new" className="text-blue-600 hover:underline">+ Add contractor</Link>
-                  {' · '}
-                  <Link href="/contractors" className="text-blue-600 hover:underline">Manage</Link>
-                </span>
-              }
-            >
-              <select name="main_contractor_id" defaultValue={preselectedContractorId} className="fi">
-                <option value="">No main contractor (direct work)</option>
-                {contractors.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name} · {c.party_type}</option>
-                ))}
-              </select>
-            </FormField>
           </FormSection>
 
           {/* Section: Contract Value */}

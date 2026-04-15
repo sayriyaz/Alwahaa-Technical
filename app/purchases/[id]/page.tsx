@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { AppLogo } from '@/components/app-logo'
-import { ManualVatFields } from '@/components/manual-vat-fields'
+import { PoItemsField } from '@/components/po-items-field'
 import { requireAuthenticatedAppUser } from '@/lib/auth'
 import { getRolePermissions } from '@/lib/auth-constants'
 import {
@@ -10,9 +10,9 @@ import {
   getPOStatusClasses,
   PURCHASE_ORDER_STATUSES,
   updatePurchaseOrder,
+  updatePurchaseOrderItems,
 } from '@/lib/purchases'
 import { formatCurrency, formatDate, toDateInputValue } from '@/lib/projects'
-import { parseVatApplicableValue } from '@/lib/vat'
 
 export default async function PurchaseOrderDetailPage({
   params,
@@ -40,8 +40,6 @@ export default async function PurchaseOrderDetailPage({
 
     const purchaseOrderId = formData.get('purchase_order_id') as string
     const expectedDelivery = formData.get('expected_delivery') as string
-    const vatApplicable = parseVatApplicableValue(formData.get('vat_applicable'))
-    const vatAmount = parseFloat(formData.get('vat_amount') as string) || 0
     const notes = formData.get('notes') as string
     const statusValue = formData.get('status') as string
     const selectedStatus = PURCHASE_ORDER_STATUSES.find((status) => status === statusValue)
@@ -50,10 +48,45 @@ export default async function PurchaseOrderDetailPage({
       return
     }
 
+    // Parse line items
+    const itemNames = formData.getAll('item_name[]') as string[]
+    const itemDescriptions = formData.getAll('item_description[]') as string[]
+    const itemQuantities = formData.getAll('item_quantity[]') as string[]
+    const itemUnits = formData.getAll('item_unit[]') as string[]
+    const itemPrices = formData.getAll('item_price[]') as string[]
+    const itemVatApplicables = formData.getAll('item_vat_applicable[]') as string[]
+    const itemVatRates = formData.getAll('item_vat_rate[]') as string[]
+
+    const items = itemNames.map((name, i) => {
+      const qty = parseFloat(itemQuantities[i]) || 0
+      const price = parseFloat(itemPrices[i]) || 0
+      const vatApplicable = itemVatApplicables[i] === 'true'
+      const vatRate = vatApplicable ? (parseFloat(itemVatRates[i]) || 0) : 0
+      const totalPrice = qty * price
+      const vatAmount = Math.round(totalPrice * vatRate) / 100
+      return {
+        item_name: name,
+        description: itemDescriptions[i] || null,
+        quantity: qty,
+        unit: itemUnits[i] || null,
+        unit_price: price,
+        total_price: totalPrice,
+        vat_applicable: vatApplicable,
+        vat_rate: vatRate,
+        vat_amount: vatAmount,
+      }
+    }).filter((item) => item.item_name && item.unit_price > 0)
+
+    const subtotal = items.reduce((s, it) => s + it.total_price, 0)
+    const vatAmount = items.reduce((s, it) => s + it.vat_amount, 0)
+
+    await updatePurchaseOrderItems(purchaseOrderId, items, db)
     await updatePurchaseOrder(purchaseOrderId, {
       expected_delivery: expectedDelivery || null,
-      vat_applicable: vatApplicable,
+      subtotal,
+      vat_applicable: vatAmount > 0,
       vat_amount: vatAmount,
+      total_amount: subtotal + vatAmount,
       notes: notes || null,
       status: selectedStatus,
     }, db)
@@ -167,11 +200,18 @@ export default async function PurchaseOrderDetailPage({
                 </Field>
               </div>
 
-              <ManualVatFields
-                idPrefix="purchase-edit"
-                initialVatApplicable={purchaseOrder.vat_applicable}
-                initialVatAmount={purchaseOrder.vat_amount}
-              />
+              <div>
+                <label className="block text-sm font-medium text-slate-900 mb-2">Line Items</label>
+                <PoItemsField initialItems={purchaseOrder.items.map((item) => ({
+                  item_name: item.item_name,
+                  description: item.description,
+                  quantity: item.quantity,
+                  unit: item.unit,
+                  unit_price: item.unit_price,
+                  vat_applicable: item.vat_applicable ?? false,
+                  vat_rate: item.vat_rate ?? 0,
+                }))} />
+              </div>
 
               <Field label="Notes" htmlFor="notes">
                 <textarea
@@ -193,42 +233,6 @@ export default async function PurchaseOrderDetailPage({
           </section>
         )}
 
-        <div className="mt-8">
-          <h3 className="text-lg font-semibold text-slate-900">Items</h3>
-          <div className="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            {purchaseOrder.items.length === 0 ? (
-              <div className="p-8 text-center text-slate-500">No items were found for this purchase order.</div>
-            ) : (
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead className="bg-slate-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Item</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Qty</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Received</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Unit</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Unit Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200 bg-white">
-                  {purchaseOrder.items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-slate-900">{item.item_name}</div>
-                        {item.description && <div className="text-xs text-slate-500">{item.description}</div>}
-                      </td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{item.quantity}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{item.received_quantity}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{item.unit}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-600">{formatCurrency(item.unit_price)}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-slate-900">{formatCurrency(item.total_price)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
       </main>
     </div>
   )

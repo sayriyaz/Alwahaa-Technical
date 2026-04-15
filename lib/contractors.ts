@@ -1,8 +1,37 @@
 import { supabase, type QueryClient } from '@/lib/supabase'
 
-export const CONTRACTOR_PARTY_TYPES = ['Contractor', 'Subcontractor', 'Consultant'] as const
+// All party types — single source of truth
+export const ALL_PARTY_TYPES = [
+  'Direct Client',
+  'Main Contractor',
+  'Developer',
+  'Commercial',
+  'Government',
+  'Consultant',
+  'Vendor',
+  'Subcontractor',
+] as const
 
-export type ContractorPartyType = (typeof CONTRACTOR_PARTY_TYPES)[number]
+export type ContractorPartyType = (typeof ALL_PARTY_TYPES)[number]
+
+// Client-type parties (appear in project "Client" dropdown)
+export const CLIENT_PARTY_TYPES: ContractorPartyType[] = [
+  'Direct Client',
+  'Main Contractor',
+  'Developer',
+  'Commercial',
+  'Government',
+  'Consultant',
+]
+
+// Supplier-type parties (appear in PO / Vendor Payment dropdowns)
+export const SUPPLIER_PARTY_TYPES: ContractorPartyType[] = [
+  'Vendor',
+  'Subcontractor',
+]
+
+// Legacy alias used in a few older pages
+export const CONTRACTOR_PARTY_TYPES = ALL_PARTY_TYPES
 
 export type Contractor = {
   id: string
@@ -25,6 +54,38 @@ export async function getContractors(queryClient: QueryClient = supabase): Promi
 
   if (error) {
     console.error('Error fetching contractors:', error)
+    return []
+  }
+
+  return data || []
+}
+
+/** Returns only client-type parties (for project client dropdown) */
+export async function getClientParties(queryClient: QueryClient = supabase): Promise<Contractor[]> {
+  const { data, error } = await queryClient
+    .from('contractors')
+    .select('*')
+    .in('party_type', CLIENT_PARTY_TYPES)
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching client parties:', error)
+    return []
+  }
+
+  return data || []
+}
+
+/** Returns only supplier-type parties (for PO / vendor payment dropdown) */
+export async function getSupplierParties(queryClient: QueryClient = supabase): Promise<Contractor[]> {
+  const { data, error } = await queryClient
+    .from('contractors')
+    .select('*')
+    .in('party_type', SUPPLIER_PARTY_TYPES)
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching supplier parties:', error)
     return []
   }
 

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { AppLogo } from '@/components/app-logo'
-import { ManualVatFields } from '@/components/manual-vat-fields'
+import { PaymentAmountField } from '@/components/payment-amount-field'
 import { requireAuthenticatedAppUser } from '@/lib/auth'
 import { getRolePermissions } from '@/lib/auth-constants'
 import { createReceipt, RECEIPT_PAYMENT_METHODS } from '@/lib/receipts'
@@ -11,7 +11,7 @@ import { parseVatApplicableValue } from '@/lib/vat'
 export default async function NewReceiptPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invoice_id?: string | string[]; amount?: string | string[] }>
+  searchParams: Promise<{ invoice_id?: string | string[]; amount?: string | string[]; error?: string }>
 }) {
   const { appUser, db } = await requireAuthenticatedAppUser(['admin', 'manager', 'accountant'])
   const permissions = getRolePermissions(appUser.role)
@@ -22,6 +22,7 @@ export default async function NewReceiptPage({
   const prefilledAmount = Array.isArray(resolvedSearchParams.amount)
     ? resolvedSearchParams.amount[0] || ''
     : resolvedSearchParams.amount || ''
+  const errorCode = resolvedSearchParams.error || ''
 
   if (!permissions.canManageReceipts) {
     redirect('/access-denied')
@@ -39,6 +40,7 @@ export default async function NewReceiptPage({
       redirect('/access-denied')
     }
 
+    const receiptNumber = (formData.get('receipt_number') as string || '').trim()
     const invoiceId = formData.get('invoice_id') as string
     const amount = parseFloat(formData.get('amount') as string) || 0
     const vatApplicable = parseVatApplicableValue(formData.get('vat_applicable'))
@@ -50,7 +52,7 @@ export default async function NewReceiptPage({
     const notes = formData.get('notes') as string
     const selectedPaymentMethod = RECEIPT_PAYMENT_METHODS.find((method) => method === paymentMethod)
 
-    if (!invoiceId || amount <= 0 || !selectedPaymentMethod) {
+    if (!receiptNumber || !invoiceId || amount <= 0 || !selectedPaymentMethod) {
       return
     }
 
@@ -66,6 +68,7 @@ export default async function NewReceiptPage({
     }
 
     const receipt = await createReceipt({
+      receipt_number: receiptNumber,
       invoice_id: invoiceId,
       project_id: invoice.project_id,
       client_id: invoice.client_id,
@@ -79,9 +82,10 @@ export default async function NewReceiptPage({
       notes: notes || null,
     }, db)
 
-    if (receipt) {
-      redirect(`/invoices/${invoiceId}`)
+    if (receipt && 'error' in receipt && receipt.error === 'duplicate_number') {
+      redirect(`/receipts/new?error=duplicate_number&invoice_id=${invoiceId}`)
     }
+    if (receipt) redirect(`/invoices/${invoiceId}`)
   }
 
   return (
@@ -129,7 +133,18 @@ export default async function NewReceiptPage({
           <h2 className="text-xl font-semibold text-slate-900">Record Payment</h2>
           <p className="mt-1 text-sm text-slate-600">Record a client payment against an invoice</p>
 
+          {errorCode === 'duplicate_number' && (
+            <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              ⚠️ That receipt number already exists. Please use a different number.
+            </div>
+          )}
+
           <form action={handleSubmit} className="mt-6 space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-slate-900 mb-1">Receipt Number *</label>
+              <input type="text" name="receipt_number" required placeholder="e.g., REC-2026-001" className="block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 sm:text-sm" />
+            </div>
+
             <div>
               <label htmlFor="invoice_id" className="block text-sm font-medium text-slate-900">Invoice *</label>
               <select
@@ -151,36 +166,20 @@ export default async function NewReceiptPage({
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <label htmlFor="amount" className="block text-sm font-medium text-slate-900">Amount Received (AED) *</label>
-                <input
-                  type="number"
-                  name="amount"
-                  id="amount"
-                  required
-                  min="0.01"
-                  step="0.01"
-                  placeholder="0.00"
-                  defaultValue={prefilledAmount}
-                  className="mt-1 block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
-              </div>
-              <div>
-                <label htmlFor="receipt_date" className="block text-sm font-medium text-slate-900">Receipt Date</label>
-                <input
-                  type="date"
-                  name="receipt_date"
-                  id="receipt_date"
-                  defaultValue={new Date().toISOString().split('T')[0]}
-                  className="mt-1 block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
-                />
-              </div>
+            <div>
+              <label htmlFor="receipt_date" className="block text-sm font-medium text-slate-900">Receipt Date</label>
+              <input
+                type="date"
+                name="receipt_date"
+                id="receipt_date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+                className="mt-1 block w-full rounded-lg border-slate-300 px-3 py-2 shadow-sm focus:border-slate-900 focus:ring-slate-900 sm:text-sm"
+              />
             </div>
-            <ManualVatFields idPrefix="receipt-create" initialVatApplicable initialVatAmount={0} />
-            <p className="text-xs text-slate-500">
-              Enter the full received amount here. VAT is recorded separately below and is not auto-calculated.
-            </p>
+            <PaymentAmountField
+              initialAmount={parseFloat(prefilledAmount) || 0}
+              amountLabel="Amount Received (AED)"
+            />
 
             <div>
               <label htmlFor="payment_method" className="block text-sm font-medium text-slate-900">Payment Method *</label>

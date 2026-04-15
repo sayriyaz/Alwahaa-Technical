@@ -14,6 +14,9 @@ export type PurchaseOrderItem = {
   unit: string
   unit_price: number
   total_price: number
+  vat_applicable: boolean
+  vat_rate: number
+  vat_amount: number
   received_quantity: number
 }
 
@@ -41,6 +44,7 @@ export type PurchaseOrderDetail = PurchaseOrderSummary & {
 }
 
 export type CreatePurchaseOrderInput = {
+  po_number: string
   vendor_id: string
   project_id: string | null
   order_date?: string
@@ -54,10 +58,24 @@ export type CreatePurchaseOrderInput = {
 
 export type UpdatePurchaseOrderInput = {
   expected_delivery: string | null
+  subtotal?: number
   vat_applicable: boolean
   vat_amount: number
+  total_amount?: number
   status: PurchaseOrderStatus
   notes: string | null
+}
+
+export type PurchaseOrderItemInput = {
+  item_name: string
+  description: string | null
+  quantity: number
+  unit: string | null
+  unit_price: number
+  total_price: number
+  vat_applicable: boolean
+  vat_rate: number
+  vat_amount: number
 }
 
 type PurchaseOrderListRow = PurchaseOrderSummary & {
@@ -155,44 +173,37 @@ export async function createPurchaseOrder(
   items: Omit<PurchaseOrderItem, 'id' | 'created_at'>[],
   queryClient: QueryClient = supabase
 ) {
-  // Calculate totals
+  // Calculate totals from per-item VAT
   const subtotal = items.reduce((sum, item) => sum + (item.total_price || 0), 0)
-  const vatApplicable = po.vat_applicable
-  const vatAmount = normalizeVatAmount(subtotal, vatApplicable, po.vat_amount || 0)
-  const totalAmount = calculateTotalAmount(subtotal, vatApplicable, vatAmount)
+  const vatAmount = items.reduce((sum, item) => sum + (item.vat_amount || 0), 0)
+  const vatApplicable = vatAmount > 0 || po.vat_applicable
+  const totalAmount = subtotal + vatAmount
 
   let createdPurchaseOrder: { id: string } & Record<string, unknown> | null = null
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const poNumber = await getNextDocumentNumber(
-      { table: 'purchase_orders', column: 'po_number', prefix: 'PO' },
-      queryClient
-    )
+  const { data, error } = await queryClient
+    .from('purchase_orders')
+    .insert({
+      ...po,
+      po_number: po.po_number,
+      order_date: po.order_date ?? new Date().toISOString().split('T')[0],
+      subtotal,
+      vat_applicable: vatApplicable,
+      vat_amount: vatAmount,
+      total_amount: totalAmount,
+      status: po.status ?? 'Draft',
+    })
+    .select()
+    .single()
 
-    const { data, error } = await queryClient
-      .from('purchase_orders')
-      .insert({
-        ...po,
-        po_number: poNumber,
-        order_date: po.order_date ?? new Date().toISOString().split('T')[0],
-        subtotal,
-        vat_applicable: vatApplicable,
-        vat_amount: vatAmount,
-        total_amount: totalAmount,
-        status: po.status ?? 'Draft',
-      })
-      .select()
-      .single()
-
-    if (!error && data) {
-      createdPurchaseOrder = data
-      break
+  if (!error && data) {
+    createdPurchaseOrder = data
+  } else {
+    if (isUniqueConstraintError(error)) {
+      return { error: 'duplicate_number' } as const
     }
-
-    if (!isUniqueConstraintError(error) || attempt === 3) {
-      console.error('Error creating purchase order:', error)
-      return null
-    }
+    console.error('Error creating purchase order:', error)
+    return null
   }
 
   if (!createdPurchaseOrder) {
@@ -289,7 +300,13 @@ export async function updatePurchaseOrder(
     updateData.received_at = null
   }
 
-  if (updates.vat_amount !== undefined || updates.vat_applicable !== undefined) {
+  if (updates.total_amount !== undefined) {
+    // total already computed by caller (item-based edit), use as-is
+    updateData.subtotal = updates.subtotal ?? current.subtotal
+    updateData.vat_applicable = updates.vat_applicable
+    updateData.vat_amount = updates.vat_amount
+    updateData.total_amount = updates.total_amount
+  } else if (updates.vat_amount !== undefined || updates.vat_applicable !== undefined) {
     const vatApplicable = updates.vat_applicable ?? current.vat_applicable
     const vatAmount = normalizeVatAmount(current.subtotal, vatApplicable, updates.vat_amount ?? current.vat_amount)
 
@@ -311,6 +328,25 @@ export async function updatePurchaseOrder(
   }
 
   return data
+}
+
+export async function updatePurchaseOrderItems(
+  purchaseOrderId: string,
+  items: PurchaseOrderItemInput[],
+  queryClient: QueryClient = supabase
+) {
+  // Delete existing items then insert new ones
+  await queryClient.from('purchase_order_items').delete().eq('purchase_order_id', purchaseOrderId)
+
+  if (items.length === 0) return
+
+  const { error } = await queryClient.from('purchase_order_items').insert(
+    items.map((item) => ({ ...item, purchase_order_id: purchaseOrderId }))
+  )
+
+  if (error) {
+    console.error('Error updating purchase order items:', error)
+  }
 }
 
 export async function deletePurchaseOrder(

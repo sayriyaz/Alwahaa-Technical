@@ -13,8 +13,8 @@ const textareaClassName = 'mt-1 block w-full rounded-lg border-slate-300 px-3 py
 const PARTY_SORTS = ['name_asc', 'name_desc', 'type_asc', 'type_desc'] as const
 type PartySort = (typeof PARTY_SORTS)[number]
 
-function canManagePartySource(source: PartySource, permissions: AppPermissions) {
-  return source === 'clients' ? permissions.canManageClients : permissions.canManageVendors
+function canManagePartySource(_source: PartySource, permissions: AppPermissions) {
+  return permissions.canManageVendors
 }
 
 function sortParties(parties: Party[], sort: PartySort) {
@@ -61,17 +61,15 @@ function getSortIndicator(currentSort: PartySort, field: 'name' | 'type') {
 
 function getPartyTypeClasses(type: Party['type']) {
   switch (type) {
-    case 'Client':
-      return 'bg-blue-50 text-blue-700'
-    case 'Vendor':
-      return 'bg-amber-50 text-amber-700'
-    case 'Consultant':
-      return 'bg-violet-50 text-violet-700'
-    case 'Subcontractor':
-      return 'bg-emerald-50 text-emerald-700'
-    case 'Contractor':
-    default:
-      return 'bg-slate-100 text-slate-700'
+    case 'Direct Client':   return 'bg-blue-50 text-blue-700'
+    case 'Main Contractor': return 'bg-sky-50 text-sky-700'
+    case 'Developer':       return 'bg-indigo-50 text-indigo-700'
+    case 'Commercial':      return 'bg-purple-50 text-purple-700'
+    case 'Government':      return 'bg-cyan-50 text-cyan-700'
+    case 'Consultant':      return 'bg-violet-50 text-violet-700'
+    case 'Vendor':          return 'bg-amber-50 text-amber-700'
+    case 'Subcontractor':   return 'bg-emerald-50 text-emerald-700'
+    default:                return 'bg-slate-100 text-slate-700'
   }
 }
 
@@ -306,39 +304,19 @@ export default async function PartiesPage({
                     {party.email && <div className="text-xs">{party.email}</div>}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">
-                    {party.source === 'clients' ? (
-                      <>
-                        <div>Emirates ID: {party.emirates_id || '-'}</div>
-                        <div className="text-xs">TRN: {party.trn_number || '-'}</div>
-                      </>
-                    ) : (
-                      <>
-                        <div>TRN: {party.trn_number || '-'}</div>
-                        <div className="text-xs capitalize">{party.source.slice(0, -1)} record</div>
-                      </>
-                    )}
+                    <div>TRN: {party.trn_number || '-'}</div>
+                    {party.emirates_id && <div className="text-xs">Emirates ID: {party.emirates_id}</div>}
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">
-                    {party.source === 'vendors' ? (
-                      <div>
-                        <div>{party.payment_terms || 'No payment terms'}</div>
-                        {party.vendor_credit > 0 ? (
-                          <div className="text-xs font-medium text-emerald-600">
-                            Credit {formatCurrency(party.vendor_credit)}
-                          </div>
-                        ) : (
-                          <div className={`text-xs ${party.balance_due > 0 ? 'font-medium text-rose-600' : 'text-slate-500'}`}>
-                            Balance {formatCurrency(party.balance_due)}
-                          </div>
-                        )}
-                      </div>
+                    {party.payment_terms ? (
+                      <div>{party.payment_terms}</div>
                     ) : (
                       <span className="text-slate-400">-</span>
                     )}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-right text-sm">
                     <div className="flex items-center justify-end gap-3">
-                      {party.source === 'vendors' && permissions.canManageVendorPayments && (
+                      {permissions.canManageVendorPayments && (
                         <Link
                           href={`/vendor-payments?vendor_id=${party.record_id}`}
                           className="font-medium text-sky-700 hover:text-sky-800"
@@ -404,77 +382,33 @@ export default async function PartiesPage({
 
               <div className="grid gap-4 md:grid-cols-2">
                 <Field label="Party Type" htmlFor="party_type">
-                  {editingParty.source === 'contractors' ? (
-                    <select id="party_type" name="party_type" defaultValue={editingParty.type} className={inputClassName}>
-                      {CONTRACTOR_PARTY_TYPES.map((type) => (
-                        <option key={type} value={type}>{type}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <>
-                      <input id="party_type" name="party_type" readOnly value={editingParty.type} className={`${inputClassName} bg-slate-50 text-slate-500`} />
-                      <p className="mt-1 text-xs text-slate-500">
-                        Existing client and vendor records keep their core type. Create a new record if you need a different category.
-                      </p>
-                    </>
-                  )}
+                  <select id="party_type" name="party_type" defaultValue={editingParty.type} className={inputClassName}>
+                    {CONTRACTOR_PARTY_TYPES.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
                 </Field>
                 <Field label="Name" htmlFor="name">
                   <input id="name" name="name" type="text" required defaultValue={editingParty.name} className={inputClassName} />
                 </Field>
                 <Field label="Contact Person" htmlFor="contact_person">
-                  <input
-                    id="contact_person"
-                    name="contact_person"
-                    type="text"
-                    defaultValue={editingParty.contact_person || ''}
-                    className={inputClassName}
-                  />
+                  <input id="contact_person" name="contact_person" type="text" defaultValue={editingParty.contact_person || ''} className={inputClassName} />
                 </Field>
-                <Field label={editingParty.source === 'clients' ? 'Phone *' : 'Phone'} htmlFor="phone">
-                  <input
-                    id="phone"
-                    name="phone"
-                    type="text"
-                    required={editingParty.source === 'clients'}
-                    defaultValue={editingParty.phone || ''}
-                    className={inputClassName}
-                  />
+                <Field label="Phone" htmlFor="phone">
+                  <input id="phone" name="phone" type="text" defaultValue={editingParty.phone || ''} className={inputClassName} />
                 </Field>
                 <Field label="Email" htmlFor="email">
                   <input id="email" name="email" type="email" defaultValue={editingParty.email || ''} className={inputClassName} />
                 </Field>
                 <Field label="TRN Number" htmlFor="trn_number">
-                  <input
-                    id="trn_number"
-                    name="trn_number"
-                    type="text"
-                    defaultValue={editingParty.trn_number || ''}
-                    className={inputClassName}
-                  />
+                  <input id="trn_number" name="trn_number" type="text" defaultValue={editingParty.trn_number || ''} className={inputClassName} />
                 </Field>
-                {editingParty.source === 'clients' && (
-                  <Field label="Emirates ID" htmlFor="emirates_id">
-                    <input
-                      id="emirates_id"
-                      name="emirates_id"
-                      type="text"
-                      defaultValue={editingParty.emirates_id || ''}
-                      className={inputClassName}
-                    />
-                  </Field>
-                )}
-                {editingParty.source === 'vendors' && (
-                  <Field label="Payment Terms" htmlFor="payment_terms">
-                    <input
-                      id="payment_terms"
-                      name="payment_terms"
-                      type="text"
-                      defaultValue={editingParty.payment_terms || ''}
-                      className={inputClassName}
-                    />
-                  </Field>
-                )}
+                <Field label="Emirates ID" htmlFor="emirates_id">
+                  <input id="emirates_id" name="emirates_id" type="text" defaultValue={editingParty.emirates_id || ''} className={inputClassName} />
+                </Field>
+                <Field label="Payment Terms" htmlFor="payment_terms">
+                  <input id="payment_terms" name="payment_terms" type="text" defaultValue={editingParty.payment_terms || ''} className={inputClassName} />
+                </Field>
               </div>
 
               <Field label="Address" htmlFor="address">

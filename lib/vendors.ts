@@ -1,17 +1,10 @@
+// vendors.ts — now reads from contractors table (party_type IN Vendor, Subcontractor)
+// The legacy 'vendors' table has been dropped; all vendor/subcontractor data lives in contractors.
+
+import { SUPPLIER_PARTY_TYPES, type Contractor } from '@/lib/contractors'
 import { supabase, type QueryClient } from '@/lib/supabase'
 
-export type Vendor = {
-  id: string
-  name: string
-  contact_person: string | null
-  phone: string | null
-  email: string | null
-  address: string | null
-  trn_number: string | null
-  payment_terms: string | null
-  notes: string | null
-  created_at: string
-}
+export type Vendor = Contractor
 
 export type VendorWithBalance = Vendor & {
   total_purchases: number
@@ -22,8 +15,9 @@ export type VendorWithBalance = Vendor & {
 
 export async function getVendors(queryClient: QueryClient = supabase): Promise<Vendor[]> {
   const { data, error } = await queryClient
-    .from('vendors')
+    .from('contractors')
     .select('*')
+    .in('party_type', SUPPLIER_PARTY_TYPES)
     .order('name', { ascending: true })
 
   if (error) {
@@ -39,7 +33,7 @@ export async function getVendorById(
   queryClient: QueryClient = supabase
 ): Promise<Vendor | null> {
   const { data, error } = await queryClient
-    .from('vendors')
+    .from('contractors')
     .select('*')
     .eq('id', id)
     .single()
@@ -57,8 +51,8 @@ export async function createVendor(
   queryClient: QueryClient = supabase
 ) {
   const { data, error } = await queryClient
-    .from('vendors')
-    .insert(vendor)
+    .from('contractors')
+    .insert({ ...vendor, party_type: vendor.party_type || 'Vendor' })
     .select()
     .single()
 
@@ -76,7 +70,7 @@ export async function updateVendor(
   queryClient: QueryClient = supabase
 ) {
   const { data, error } = await queryClient
-    .from('vendors')
+    .from('contractors')
     .update(updates)
     .eq('id', id)
     .select()
@@ -91,7 +85,7 @@ export async function updateVendor(
 }
 
 export async function deleteVendor(id: string, queryClient: QueryClient = supabase) {
-  const { error } = await queryClient.from('vendors').delete().eq('id', id)
+  const { error } = await queryClient.from('contractors').delete().eq('id', id)
 
   if (error) {
     console.error('Error deleting vendor:', error)
@@ -118,13 +112,16 @@ export async function getVendorBalance(
   ])
 
   const totalPurchases = (purchases || []).reduce((sum, p) => sum + (p.total_amount || 0), 0)
-  const totalPaid = (payments || []).reduce((sum, p) => sum + (p.amount || 0) + (p.vat_applicable ? (p.vat_amount || 0) : 0), 0)
-  const balanceDifference = totalPurchases - totalPaid
+  const totalPaid = (payments || []).reduce(
+    (sum, p) => sum + (p.amount || 0) + (p.vat_applicable ? (p.vat_amount || 0) : 0),
+    0
+  )
+  const diff = totalPurchases - totalPaid
 
   return {
     totalPurchases,
     totalPaid,
-    balanceDue: Math.max(balanceDifference, 0),
-    vendorCredit: Math.max(-balanceDifference, 0),
+    balanceDue: Math.max(diff, 0),
+    vendorCredit: Math.max(-diff, 0),
   }
 }

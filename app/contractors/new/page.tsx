@@ -40,7 +40,7 @@ export default async function NewContractorPage({
     const trnNumber = formData.get('trn_number') as string
     const notes = formData.get('notes') as string
 
-    const selectedPartyType = CONTRACTOR_PARTY_TYPES.find((type) => type === partyTypeValue) || 'Contractor'
+    const selectedPartyType = CONTRACTOR_PARTY_TYPES.find((type) => type === partyTypeValue) || 'Subcontractor'
 
     if (!name) {
       return
