@@ -67,7 +67,7 @@ cd /Users/riyazurrahman/Desktop/alwahaa-pools
 npm run dev
 ```
 
-Open http://localhost:3000 and login with your credentials!
+Open http://localhost:3001 and login with your credentials!
 
 ---
 

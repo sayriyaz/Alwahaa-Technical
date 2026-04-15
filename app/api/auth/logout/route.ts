@@ -8,5 +8,5 @@ export async function POST() {
   cookieStore.delete(ACCESS_TOKEN_COOKIE)
   cookieStore.delete(REFRESH_TOKEN_COOKIE)
 
-  return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'))
+  return NextResponse.redirect(new URL('/login', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'))
 }
